@@ -52,13 +52,17 @@ class AdamW(Optimizer):
 
                 # Access hyperparameters from the `group` dictionary
                 alpha = group["lr"]
+                betas = group["betas"]
+                eps = group["eps"]
+                weight_decay = group["weight_decay"]
+                correct_bias = group["correct_bias"]
 
                 # Complete the implementation of AdamW here, reading and saving
                 # your state in the `state` dictionary above.
                 # The hyperparameters can be read from the `group` dictionary
                 # (they are lr, betas, eps, weight_decay, and correct_bias, as saved in
                 # the constructor).
-                #
+                
                 # 1- Update first and second moments of the gradients.
                 # 2- Apply bias correction.
                 #    (using the "efficient version" given in https://arxiv.org/abs/1412.6980;
@@ -68,6 +72,27 @@ class AdamW(Optimizer):
                 #    (incorporating the learning rate again).
 
                 ### TODO
-                raise NotImplementedError
+                # update step
+                if len(state) == 0:
+                    state["exp_avg"] = torch.zeros_like(p.data)
+                    state["exp_avg_sq"] = torch.zeros_like(p.data)
+                    state['step'] = 0
+                
+                # Update state
+                state['step'] += 1
+                state["exp_avg"].mul_(betas[0]).add_(grad, alpha=1-betas[0])
+                state["exp_avg_sq"].mul_(betas[1]).addcmul_(grad, grad, value=1-betas[1])
+                
+                # Bias correction
+                if correct_bias:
+                    bias_correction1 = 1 - betas[0] ** state['step']
+                    bias_correction2 = 1 - betas[1] ** state['step']
+                    denom = (state["exp_avg_sq"]/ bias_correction2).sqrt().add_(eps).mul_(bias_correction1)
+                else:
+                    denom = state["exp_avg_sq"].sqrt() + eps
+                
+                # Update step
+                p.data.add_(-weight_decay*p.data, alpha=alpha)
+                p.data.addcdiv_(-state["exp_avg"], denom, value=alpha)
 
         return loss
