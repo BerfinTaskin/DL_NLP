@@ -154,6 +154,9 @@ class MultitaskBERT(nn.Module):
         return output_logits
 
 def save_model(model, optimizer, args, config, filepath):
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    
     save_info = {
         "model": model.state_dict(),
         "optim": optimizer.state_dict(),
