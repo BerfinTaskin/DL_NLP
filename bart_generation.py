@@ -20,7 +20,7 @@ def transform_data(dataset, max_length=256):
     Turn the data to the format you want to use.
     Use AutoTokenizer to obtain encoding (input_ids and attention_mask).
     Tokenize the sentence pair in the following format:
-    sentence_1 + SEP + sentence_1 segment location + SEP + paraphrase types.
+    sentence_1 + SEP + sentence_1 segment location + SEP + paraphrase_type_ids.
     Return Data Loader.
     """
     ### TODO 
@@ -93,7 +93,7 @@ def evaluate_model(model, test_data, device, tokenizer):
 
     # Penalize BLEU and rescale it to 0-100
     # If you perfectly predict all the targets, you should get an penalized BLEU score of around 52
-    penalized_bleu = bleu_score_reference*bleu_score_inputs/ 52
+    penalized_bleu = bleu_score_reference * bleu_score_inputs / 52
     print(f"Penalized BLEU Score: {penalized_bleu}")
 
     return penalized_bleu
@@ -123,9 +123,9 @@ def finetune_paraphrase_generation(args):
     model.to(device)
     tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large", local_files_only=True)
 
-    train_dataset = pd.read_csv("data/etpc-paraphrase-train.csv", sep="\t")
-    dev_dataset = pd.read_csv("data/etpc-paraphrase-dev.csv", sep="\t")
-    test_dataset = pd.read_csv("data/etpc-paraphrase-generation-test-student.csv", sep="\t")
+    train_dataset = pd.read_csv("data/etpc-paraphrase-train.csv")
+    test_dataset = pd.read_csv("data/etpc-paraphrase-generation-test-student.csv")
+    dev_dataset = pd.read_csv("data/etpc-paraphrase-dev.csv")
 
     # You might do a split of the train data into train/validation set here
     # ...
@@ -146,7 +146,7 @@ def finetune_paraphrase_generation(args):
     test_ids = test_dataset["id"]
     test_results = test_model(test_data, test_ids, device, model, tokenizer)
     test_results.to_csv(
-        "predictions/bart/etpc-paraphrase-generation-test-output.csv", index=False, sep="\t"
+        "predictions/bart/etpc-paraphrase-generation-test-output.csv", index=False
     )
 
 

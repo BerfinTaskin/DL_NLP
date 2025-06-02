@@ -16,7 +16,7 @@ TQDM_DISABLE = False
 
 
 class BartWithClassifier(nn.Module):
-    def __init__(self, num_labels=7):
+    def __init__(self, num_labels=26):
         super(BartWithClassifier, self).__init__()
 
         self.bart = BartModel.from_pretrained("facebook/bart-large", local_files_only=True)
@@ -47,9 +47,13 @@ def transform_data(dataset, max_length=512):
     sentences in the dataset.
     2. Use the AutoTokenizer from_pretrained to tokenize the sentences and obtain the
     input_ids and attention_mask.
-    3. Currently, the labels are in the form of [2, 5, 6, 0, 0, 0, 0]. This means that
-    the sentence pair is of type 2, 5, and 6. Turn this into a binary form, where the
-    label becomes [0, 1, 0, 0, 1, 1, 0]. Be careful that the test-student.csv does not
+    3. Currently, the labels are in the form of [6, 6, 6, 25, 25, 29]. This means that
+    the sentence pair contains type 6, 25, and 29. Turn this into a binary form, where the
+    label becomes [0, 0, 0, 0, 0, 1, ..., 1, 0, 0, 1, 0, 0].
+    IMPORTANT: You will find that the dataset contains types up to 31, but some are not
+    assigned. You need to drop 12, 19, 20, 23 and 27 when creating the binary labels.
+    This way you should end up with a binary label of size 26.     
+    Be careful that the test-student.csv does not
     have the paraphrase_types column. You should return a DataLoader without the labels.
     4. Use the input_ids, attention_mask, and binary labels to create a TensorDataset.
     Return a DataLoader with the TensorDataset. You can choose a batch size of your
@@ -89,9 +93,7 @@ def test_model(model, test_data, test_ids, device):
 def evaluate_model(model, test_data, device):
     """
     This function measures the accuracy of our model's prediction on a given train/validation set
-    We measure how many of the seven paraphrase types the model has predicted correctly for each data point.
-    So, if the models prediction is [1,1,0,0,1,1,0] and the true label is [0,0,0,0,1,1,0], this predicition
-    has an accuracy of 5/7, i.e. 71.4% .
+    We measure how many of the 26 paraphrase types the model has predicted correctly for each data point..
     """
     all_pred = []
     all_labels = []
@@ -119,15 +121,13 @@ def evaluate_model(model, test_data, device):
     accuracies = []
     matthews_coefficients = []
     for label_idx in range(true_labels_np.shape[1]):
-        correct_predictions = np.sum(
-            true_labels_np[:, label_idx] == predicted_labels_np[:, label_idx]
-        )
+        correct_predictions = np.sum(true_labels_np[:, label_idx] == predicted_labels_np[:, label_idx])
         total_predictions = true_labels_np.shape[0]
         label_accuracy = correct_predictions / total_predictions
         accuracies.append(label_accuracy)
 
-        #compute Matthwes Correlation Coefficient for each paraphrase type
-        matth_coef = matthews_corrcoef(true_labels_np[:,label_idx], predicted_labels_np[:,label_idx])
+        # compute Matthwes Correlation Coefficient for each paraphrase type
+        matth_coef = matthews_corrcoef(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx])
         matthews_coefficients.append(matth_coef)
 
     # Calculate the average accuracy over all labels
@@ -160,8 +160,8 @@ def finetune_paraphrase_detection(args):
     device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
     model.to(device)
 
-    train_dataset = pd.read_csv("data/etpc-paraphrase-train.csv", sep="\t")
-    test_dataset = pd.read_csv("data/etpc-paraphrase-detection-test-student.csv", sep="\t")
+    train_dataset = pd.read_csv("data/etpc-paraphrase-train.csv")
+    test_dataset = pd.read_csv("data/etpc-paraphrase-detection-test-student.csv")
 
     # TODO You might do a split of the train data into train/validation set here
     # (or in the csv files directly)
@@ -180,9 +180,7 @@ def finetune_paraphrase_detection(args):
 
     test_ids = test_dataset["id"]
     test_results = test_model(model, test_data, test_ids, device)
-    test_results.to_csv(
-        "predictions/bart/etpc-paraphrase-detection-test-output.csv", index=False, sep="\t"
-    )
+    test_results.to_csv("predictions/bart/etpc-paraphrase-detection-test-output.csv", index=False)
 
 
 if __name__ == "__main__":
