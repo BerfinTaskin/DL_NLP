@@ -1,6 +1,5 @@
 import argparse
 import random
-
 import numpy as np
 import pandas as pd
 import torch
@@ -10,10 +9,10 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, BartModel
 from sklearn.metrics import matthews_corrcoef
 from optimizer import AdamW
-import json 
+import json
+import os # Ensure os is imported for makedirs
 
 TQDM_DISABLE = False
-
 
 class BartWithClassifier(nn.Module):
     def __init__(self, num_labels=26):
@@ -37,7 +36,6 @@ class BartWithClassifier(nn.Module):
         return probabilities
 
 
-
 # This mapping should be defined globally or passed appropriately if needed elsewhere.
 # It maps original ETPC paraphrase type IDs to a 0-indexed label space of 26.
 DROPPED_TYPES = {12, 19, 20, 23, 27}
@@ -50,109 +48,109 @@ for i in range(1, 32): # Assuming original types go up to 31
 # Expected: current_idx should be 26 after this loop.
 
 def transform_data(dataset: pd.DataFrame, tokenizer_name: str = "facebook/bart-large", max_length: int = 512, batch_size: int = 16):
-        """
-        dataset: pd.DataFrame
+    """
+    dataset: pd.DataFrame
 
-        Turn the data to the format you want to use.
+    Turn the data to the format you want to use.
 
-        1. Extract the sentences from the dataset. We recommend using the already split
-        sentences in the dataset.
-        2. Use the AutoTokenizer from_pretrained to tokenize the sentences and obtain the
-        input_ids and attention_mask.
-        3. Currently, the labels are in the form of [6, 6, 6, 25, 25, 29]. This means that
-        the sentence pair contains type 6, 25, and 29. Turn this into a binary form, where the
-        label becomes [0, 0, 0, 0, 0, 1, ..., 1, 0, 0, 1, 0, 0].
-        IMPORTANT: You will find that the dataset contains types up to 31, but some are not
-        assigned. You need to drop 12, 19, 20, 23 and 27 when creating the binary labels.
-        This way you should end up with a binary label of size 26.     
-        Be careful that the test-student.csv does not
-        have the paraphrase_types column. You should return a DataLoader without the labels.
-        4. Use the input_ids, attention_mask, and binary labels to create a TensorDataset.
-        Return a DataLoader with the TensorDataset. You can choose a batch size of your
-        choice.
-        """
-        # 1. Initialize the tokenizer
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, local_files_only=False)
+    1. Extract the sentences from the dataset. We recommend using the already split
+    sentences in the dataset.
+    2. Use the AutoTokenizer from_pretrained to tokenize the sentences and obtain the
+    input_ids and attention_mask.
+    3. Currently, the labels are in the form of [6, 6, 6, 25, 25, 29]. This means that
+    the sentence pair contains type 6, 25, and 29. Turn this into a binary form, where the
+    label becomes [0, 0, 0, 0, 0, 1, ..., 1, 0, 0, 1, 0, 0].
+    IMPORTANT: You will find that the dataset contains types up to 31, but some are not
+    assigned. You need to drop 12, 19, 20, 23 and 27 when creating the binary labels.
+    This way you should end up with a binary label of size 26.
+    Be careful that the test-student.csv does not
+    have the paraphrase_types column. You should return a DataLoader without the labels.
+    4. Use the input_ids, attention_mask, and binary labels to create a TensorDataset.
+    Return a DataLoader with the TensorDataset. You can choose a batch size of your
+    choice.
+    """
+    # 1. Initialize the tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, local_files_only=False)
 
-        # 2. Prepare lists to store processed data
-        all_input_ids = []
-        all_attention_masks = []
-        all_binary_labels = []
+    # 2. Prepare lists to store processed data
+    all_input_ids = []
+    all_attention_masks = []
+    all_binary_labels = []
 
-        # 3. Check if 'paraphrase_type_ids' column exists for label processing
-        has_labels = 'paraphrase_type_ids' in dataset.columns
+    # 3. Check if 'paraphrase_type_ids' column exists for label processing
+    has_labels = 'paraphrase_type_ids' in dataset.columns
 
-        # 4. Iterate over each row in the DataFrame
-        for index, row in dataset.iterrows():
-            # a. Combine sentence1 and sentence2
-            # BART uses </s> as a separator.
-            # For sentence pair tasks, typical input is: <s> sentence1 </s> </s> sentence2 </s>
-            # The tokenizer.encode_plus handles adding the initial <s> and final </s>.
-            # We need to ensure the two sentences are distinctly represented.
-            # A common way is to provide them as a pair to the tokenizer.
-            sentence1 = str(row['sentence1'])
-            sentence2 = str(row['sentence2'])
+    # 4. Iterate over each row in the DataFrame
+    for index, row in dataset.iterrows():
+        # a. Combine sentence1 and sentence2
+        # BART uses </s> as a separator.
+        # For sentence pair tasks, typical input is: <s> sentence1 </s> </s> sentence2 </s>
+        # The tokenizer.encode_plus handles adding the initial <s> and final </s>.
+        # We need to ensure the two sentences are distinctly represented.
+        # A common way is to provide them as a pair to the tokenizer.
+        sentence1 = str(row['sentence1'])
+        sentence2 = str(row['sentence2'])
 
-            # b. Tokenize the sentence pair
-            encoded_dict = tokenizer.encode_plus(
-                sentence1,
-                sentence2, # text_pair
-                add_special_tokens=True,    # Add '<s>' and '</s>'
-                max_length=max_length,      # Pad & truncate all sentences.
-                padding='max_length',       # Pad to max_length
-                truncation=True,            # Truncate to max_length if necessary
-                return_attention_mask=True, # Construct attn. masks.
-                return_tensors='pt',        # Return pytorch tensors.
-            )
+        # b. Tokenize the sentence pair
+        encoded_dict = tokenizer.encode_plus(
+            sentence1,
+            sentence2, # text_pair
+            add_special_tokens=True,     # Add '<s>' and '</s>'
+            max_length=max_length,       # Pad & truncate all sentences.
+            padding='max_length',        # Pad to max_length
+            truncation=True,             # Truncate to max_length if necessary
+            return_attention_mask=True, # Construct attn. masks.
+            return_tensors='pt',         # Return pytorch tensors.
+        )
 
-            # c. Append tokenized inputs
-            all_input_ids.append(encoded_dict['input_ids'].squeeze(0)) # Remove batch dimension
-            all_attention_masks.append(encoded_dict['attention_mask'].squeeze(0))
+        # c. Append tokenized inputs
+        all_input_ids.append(encoded_dict['input_ids'].squeeze(0)) # Remove batch dimension
+        all_attention_masks.append(encoded_dict['attention_mask'].squeeze(0))
 
-            # d. Process labels if they exist
-            if has_labels:
-                # i. Parse the string representation of the list
-                try:
-                    # Ensure the string is valid JSON. Sometimes they might be single-quoted.
-                    type_ids_str = str(row['paraphrase_type_ids']).replace("'", '"')
-                    original_types = json.loads(type_ids_str)
-                except json.JSONDecodeError:
-                    print(f"Warning: Could not parse paraphrase_type_ids for row {index}: {row['paraphrase_type_ids']}")
-                    original_types = [] # Default to no types if parsing fails
+        # d. Process labels if they exist
+        if has_labels:
+            # i. Parse the string representation of the list
+            try:
+                # Ensure the string is valid JSON. Sometimes they might be single-quoted.
+                type_ids_str = str(row['paraphrase_type_ids']).replace("'", '"')
+                original_types = json.loads(type_ids_str)
+            except json.JSONDecodeError:
+                print(f"Warning: Could not parse paraphrase_type_ids for row {index}: {row['paraphrase_type_ids']}")
+                original_types = [] # Default to no types if parsing fails
 
-                # ii. Create a binary vector (size 26)
-                binary_label_vector = torch.zeros(26, dtype=torch.float) # Use float for BCELoss
+            # ii. Create a binary vector (size 26)
+            binary_label_vector = torch.zeros(26, dtype=torch.float) # Use float for BCELoss
 
-                # iii. Populate the binary vector based on ORIGINAL_TYPE_TO_INDEX_MAP
-                for pt_type in set(original_types): # Use set to handle duplicates like [6,6,6]
-                    if pt_type in ORIGINAL_TYPE_TO_INDEX_MAP:
-                        mapped_idx = ORIGINAL_TYPE_TO_INDEX_MAP[pt_type]
-                        if 0 <= mapped_idx < 26:
-                            binary_label_vector[mapped_idx] = 1.0
+            # iii. Populate the binary vector based on ORIGINAL_TYPE_TO_INDEX_MAP
+            for pt_type in set(original_types): # Use set to handle duplicates like [6,6,6]
+                if pt_type in ORIGINAL_TYPE_TO_INDEX_MAP:
+                    mapped_idx = ORIGINAL_TYPE_TO_INDEX_MAP[pt_type]
+                    if 0 <= mapped_idx < 26:
+                        binary_label_vector[mapped_idx] = 1.0
                     # else:
                     #     print(f"Warning: Original type {pt_type} not in mapping or out of 0-25 range after mapping.")
 
-                all_binary_labels.append(binary_label_vector)
+            all_binary_labels.append(binary_label_vector)
 
-        # 5. Convert lists to PyTorch tensors
-        all_input_ids_tensor = torch.stack(all_input_ids)
-        all_attention_masks_tensor = torch.stack(all_attention_masks)
+    # 5. Convert lists to PyTorch tensors
+    all_input_ids_tensor = torch.stack(all_input_ids)
+    all_attention_masks_tensor = torch.stack(all_attention_masks)
 
-        # 6. Create TensorDataset and DataLoader
-        if has_labels:
-            all_binary_labels_tensor = torch.stack(all_binary_labels)
-            tensor_dataset = TensorDataset(all_input_ids_tensor, all_attention_masks_tensor, all_binary_labels_tensor)
-            # Shuffle training data
-            data_loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=True)
-        else:
-            # For the test set (no labels)
-            tensor_dataset = TensorDataset(all_input_ids_tensor, all_attention_masks_tensor)
-            # Do not shuffle test data
-            data_loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False)
+    # 6. Create TensorDataset and DataLoader
+    if has_labels:
+        all_binary_labels_tensor = torch.stack(all_binary_labels)
+        tensor_dataset = TensorDataset(all_input_ids_tensor, all_attention_masks_tensor, all_binary_labels_tensor)
+        # Shuffle training data
+        data_loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=True)
+    else:
+        # For the test set (no labels)
+        tensor_dataset = TensorDataset(all_input_ids_tensor, all_attention_masks_tensor)
+        # Do not shuffle test data
+        data_loader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=False)
 
-        return data_loader
+    return data_loader
 
-def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate=1e-5):
+def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate=1e-5, early_stopping_patience=3):
     """
     Train the model. You can use any training loop you want. We recommend starting with
     AdamW as your optimizer. You can take a look at the SST training loop for reference.
@@ -171,6 +169,12 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
     criterion = criterion.to(device) # Move loss function to device
 
     print(f"Starting training for {num_epochs} epochs on {device}...")
+
+    # --- Early Stopping Variables ---
+    best_dev_loss = float('inf')
+    epochs_no_improve = 0
+    patience = early_stopping_patience # Use the patience passed as an argument
+    # --- End Early Stopping Variables ---
 
     for epoch_i in range(num_epochs):
         print(f"\n======== Epoch {epoch_i + 1} / {num_epochs} ========")
@@ -207,8 +211,42 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
         # --- Validation ---
         print("Running Validation...")
         dev_accuracy, dev_mcc = evaluate_model(model, dev_data, device)
+
+        # --- Calculate Validation Loss for Early Stopping ---
+        # Temporarily set model to eval mode to calculate validation loss
+        model.eval()
+        total_dev_loss = 0
+        with torch.no_grad():
+            for batch in dev_data:
+                b_input_ids = batch[0].to(device)
+                b_input_mask = batch[1].to(device)
+                b_labels = batch[2].to(device)
+                probabilities = model(input_ids=b_input_ids, attention_mask=b_input_mask)
+                loss = criterion(probabilities, b_labels.float())
+                total_dev_loss += loss.item()
+        avg_dev_loss = total_dev_loss / len(dev_data)
+        model.train() # Set model back to training mode
+        # --- End Calculate Validation Loss ---
+
         print(f"  Development Accuracy: {dev_accuracy:.4f}")
         print(f"  Development Matthews Correlation Coefficient: {dev_mcc:.4f}")
+        print(f"  Average Development Loss: {avg_dev_loss:.4f}") # Print development loss
+
+        # --- Early Stopping Logic ---
+        if avg_dev_loss < best_dev_loss:
+            best_dev_loss = avg_dev_loss
+            epochs_no_improve = 0
+            # Optional: Save the best model state here
+            # torch.save(model.state_dict(), 'best_model.pth')
+            print("  Development loss improved!")
+        else:
+            epochs_no_improve += 1
+            print(f"  Development loss did not improve. Patience: {epochs_no_improve}/{patience}")
+
+        if epochs_no_improve >= patience:
+            print(f"\nEarly stopping triggered after {epoch_i + 1} epochs. No improvement in development loss for {patience} consecutive epochs.")
+            break # Exit the training loop
+        # --- End Early Stopping Logic ---
 
     print("\nTraining complete!")
     return model
@@ -253,7 +291,7 @@ def test_model(model, test_data, test_ids, device):
         'id': test_ids, # This should be a pd.Series or list of IDs from the test set
         'Predicted_Paraphrase_Types': predictions_list_of_lists
     })
-    
+
     print("Testing complete!")
     return results_df
 
@@ -320,7 +358,7 @@ def evaluate_model(model, test_data, device):
     # Calculate the average accuracy over all labels
     accuracy = np.mean(accuracies) if accuracies else 0.0
     matthews_coefficient = np.mean(matthews_coefficients) if matthews_coefficients else 0.0
-    
+
     model.train() # Set model back to training mode
     return accuracy, matthews_coefficient
 
@@ -343,9 +381,12 @@ def get_args():
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for AdamW")
     parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training and evaluation")
     # And other arguments...
-    parser.add_argument("--max_length", type=int, default=128, help="Max sequence length for tokenizer") 
+    parser.add_argument("--max_length", type=int, default=128, help="Max sequence length for tokenizer")
     parser.add_argument("--dev_split_ratio", type=float, default=0.1, help="Proportion of training data to use for development/validation")
     parser.add_argument("--model_name", type=str, default="facebook/bart-large", help="Name of the BART model to use")
+    # --- New Argument for Early Stopping Patience ---
+    parser.add_argument("--early_stopping_patience", type=int, default=3, help="Number of epochs to wait for improvement in development loss before stopping.")
+    # --- End New Argument ---
     args = parser.parse_args()
     return args
 
@@ -364,10 +405,10 @@ def finetune_paraphrase_detection(args):
     # --- Train/Validation Split ---
     # Shuffle the dataset
     full_train_dataset_df = full_train_dataset_df.sample(frac=1, random_state=args.seed).reset_index(drop=True)
-    
+
     num_dev_samples = int(len(full_train_dataset_df) * args.dev_split_ratio)
     if num_dev_samples == 0 and len(full_train_dataset_df) > 0 : # ensure at least 1 sample for dev if possible
-        num_dev_samples = 1 
+        num_dev_samples = 1
     if num_dev_samples > len(full_train_dataset_df) -1 : # ensure at least 1 sample for train
         num_dev_samples = len(full_train_dataset_df) -1 if len(full_train_dataset_df) > 0 else 0
 
@@ -388,11 +429,15 @@ def finetune_paraphrase_detection(args):
     dev_dataloader = transform_data(dev_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
     print("Transforming test data...")
     test_dataloader = transform_data(test_dataset_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
-    
+
     print(f"Loaded {len(train_df)} training samples for DataLoader.") # Corrected to reflect split
 
     # Train the model
-    model = train_model(model, train_dataloader, dev_dataloader, device, num_epochs=args.num_epochs, learning_rate=args.learning_rate)
+    # Pass early stopping patience from args
+    model = train_model(model, train_dataloader, dev_dataloader, device,
+                        num_epochs=args.num_epochs,
+                        learning_rate=args.learning_rate,
+                        early_stopping_patience=args.early_stopping_patience) # Pass patience to train_model
 
     print("\nTraining finished.")
     print("Evaluating on the development set one last time...")
@@ -412,7 +457,6 @@ def finetune_paraphrase_detection(args):
     print(f"Test predictions saved to {os.path.join(output_dir, 'etpc-paraphrase-detection-test-output.csv')}")
 
 if __name__ == "__main__":
-    import os # Added for makedirs
     args = get_args()
     seed_everything(args.seed)
     finetune_paraphrase_detection(args)
