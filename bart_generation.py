@@ -15,7 +15,7 @@ from optimizer import AdamW
 TQDM_DISABLE = False
 
 
-def transform_data(dataset, max_length=256):
+def transform_data(dataset, max_length=256, shuffle=True):
     """
     Turn the data to the format you want to use.
     Use AutoTokenizer to obtain encoding (input_ids and attention_mask).
@@ -23,16 +23,85 @@ def transform_data(dataset, max_length=256):
     sentence_1 + SEP + sentence_1 segment location + SEP + paraphrase_type_ids.
     Return Data Loader.
     """
-    ### TODO 
-    raise NotImplementedError
+    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large", local_files_only=True)
+    input_ids = []
+    attention_masks = []
+    # For training/dev, we need targets (sentence2)
+    has_targets = "sentence2" in dataset.columns
+    targets = []
+    for idx, row in dataset.iterrows():
+        sentence1 = str(row["sentence1"])
+        encoded = tokenizer(
+            sentence1,
+            add_special_tokens=True,
+            max_length=max_length,
+            padding="max_length",
+            truncation=True,
+            return_attention_mask=True,
+            return_tensors="pt",
+        )
+        input_ids.append(encoded["input_ids"].squeeze(0))
+        attention_masks.append(encoded["attention_mask"].squeeze(0))
+        if has_targets:
+            targets.append(str(row["sentence2"]))
+    input_ids = torch.stack(input_ids)
+    attention_masks = torch.stack(attention_masks)
+    if has_targets:
+        dataset = TensorDataset(input_ids, attention_masks, torch.arange(len(input_ids)))
+    else:
+        dataset = TensorDataset(input_ids, attention_masks)
+    dataloader = DataLoader(dataset, batch_size=16, shuffle=shuffle)
+    # Store targets for use in train_model
+    dataloader.targets = targets if has_targets else None
+    return dataloader
 
 
 def train_model(model, train_data, dev_data, device, tokenizer):
     """
     Train the model. Return and save the model.
     """
-    ### TODO
-    raise NotImplementedError
+    optimizer = AdamW(model.parameters(), lr=5e-5)
+    num_epochs = 3
+    model.train()
+    best_bleu = -float('inf')
+    # Get targets for teacher forcing
+    train_targets = train_data.targets
+    for epoch in range(num_epochs):
+        total_loss = 0
+        batch_idx = 0
+        for batch in tqdm(train_data, desc=f"Training Epoch {epoch+1}", disable=TQDM_DISABLE):
+            input_ids = batch[0].to(device)
+            attention_mask = batch[1].to(device)
+            # Get corresponding targets for this batch
+            if train_targets is not None:
+                indices = batch[2].cpu().numpy()
+                target_texts = [train_targets[i] for i in indices]
+                with tokenizer.as_target_tokenizer():
+                    target_encodings = tokenizer(
+                        target_texts,
+                        max_length=64,
+                        padding="max_length",
+                        truncation=True,
+                        return_tensors="pt"
+                    )
+                labels = target_encodings["input_ids"].to(device)
+                labels[labels == tokenizer.pad_token_id] = -100  # Ignore padding in loss
+            else:
+                labels = None
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels
+            )
+            loss = outputs.loss
+            total_loss += loss.item()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            batch_idx += 1
+        avg_loss = total_loss / batch_idx
+        print(f"Epoch {epoch+1} average loss: {avg_loss:.4f}")
+    return model
 
 
 def test_model(test_data, test_ids, device, model, tokenizer):
@@ -42,8 +111,30 @@ def test_model(test_data, test_ids, device, model, tokenizer):
     The data format in the columns should be the same as in the train dataset.
     Return this dataframe.
     """
-    ### TODO
-    raise NotImplementedError
+    model.eval()
+    generated_sentences = []
+    with torch.no_grad():
+        for batch in tqdm(test_data, desc="Generating Paraphrases", disable=TQDM_DISABLE):
+            input_ids = batch[0].to(device)
+            attention_mask = batch[1].to(device)
+            outputs = model.generate(
+                input_ids,
+                attention_mask=attention_mask,
+                max_length=50,
+                num_beams=5,
+                early_stopping=True,
+            )
+            pred_text = [
+                tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+                for g in outputs
+            ]
+            generated_sentences.extend(pred_text)
+    # test_ids is a pd.Series or list
+    df = pd.DataFrame({
+        "id": test_ids,
+        "Generated_sentence2": generated_sentences
+    })
+    return df
 
 
 def evaluate_model(model, test_data, device, tokenizer):
