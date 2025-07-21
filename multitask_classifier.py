@@ -76,7 +76,9 @@ class MultitaskBERT(nn.Module):
         self.similarity_linear = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
         # paraphrase types
         self.paraphrase_type_dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.paraphrase_type_linear = nn.Linear(2*BERT_HIDDEN_SIZE, 26)
+        self.paraphrase_type_hidden = nn.Linear(4*BERT_HIDDEN_SIZE, BERT_HIDDEN_SIZE) # Hidden Layer + GELU might help learn finer details
+        self.paraphrase_type_activation = nn.GELU()
+        self.paraphrase_type_linear = nn.Linear(BERT_HIDDEN_SIZE, 26)
 
     def forward(self, input_ids, attention_mask):
         """Takes a batch of sentences and produces embeddings for them."""
@@ -145,10 +147,17 @@ class MultitaskBERT(nn.Module):
         during evaluation, and handled as a logit by the appropriate loss function.
         Dataset: ETPC
         """
+
         ### TODO
         cls_embedding_1 = self.forward(input_ids_1, attention_mask_1)
         cls_embedding_2 = self.forward(input_ids_2, attention_mask_2)
-        cls_embedding = torch.cat((cls_embedding_1, cls_embedding_2), dim=1)
+
+        # Rather than just concatenating the two embeddings, we can also add difference and product
+        # This might help the classification head see relationships that are already encoded by BERT in the embeddings
+        cls_embedding = torch.cat([cls_embedding_1, cls_embedding_2, torch.abs(cls_embedding_1 - cls_embedding_2), cls_embedding_1 * cls_embedding_2], dim=-1)
+        
+        cls_embedding = self.paraphrase_type_dropout(cls_embedding)
+        cls_embedding = self.paraphrase_type_activation(self.paraphrase_type_hidden(cls_embedding))
         cls_embedding = self.paraphrase_type_dropout(cls_embedding)
         output_logits = self.paraphrase_type_linear(cls_embedding)
         return output_logits
@@ -286,6 +295,7 @@ def train_multitask(args):
 
     model = MultitaskBERT(config)
     model = model.to(device)
+    print(model)
 
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr)
