@@ -222,8 +222,8 @@ def finetune_paraphrase_generation(args):
     # ...
 
     train_data = transform_data(train_dataset)
-    dev_data = transform_data(dev_dataset)
-    test_data = transform_data(test_dataset)
+    dev_data = transform_data(dev_dataset, shuffle=False)
+    test_data = transform_data(test_dataset, shuffle=False)
 
     print(f"Loaded {len(train_dataset)} training samples.")
 
