@@ -44,6 +44,14 @@ module unload git # Unload git module if no longer needed
 cd /user/shrinath.madde/u17468/DL_NLP
 
 # Run your Python script (Removed --local_files_only)
-python -u bart_detection.py --use_gpu --num_epochs 30 --batch_size 2 --learning_rate 2e-5 --early_stopping_patience 4
+python -u bart_detection.py \
+    --use_gpu \
+    --num_epochs 30 \
+    --batch_size 2 \
+    --learning_rate 2e-5 \
+    --early_stopping_patience 4 \
+    --approach "Baseline Approach" \
+    --job_id "${SLURM_JOB_ID}"
 
+    
 echo "GPU job finished!"

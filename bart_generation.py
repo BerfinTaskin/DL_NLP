@@ -117,40 +117,91 @@ def get_args():
     return args
 
 
-def finetune_paraphrase_generation(args):
-    device = torch.device("cuda") if args.use_gpu else torch.device("cpu")
-    model = BartForConditionalGeneration.from_pretrained("facebook/bart-large", local_files_only=True)
+def finetune_paraphrase_detection(args):
+    import json
+    print(f"Using arguments: {args}")
+    model = BartWithClassifier(num_labels=26)  # Pass model_name
+    device = torch.device("cuda") if args.use_gpu and torch.cuda.is_available() else torch.device("cpu")
+    print(f"Using device: {device}")
     model.to(device)
-    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large", local_files_only=True)
 
-    train_dataset = pd.read_csv("data/etpc-paraphrase-train.csv")
-    test_dataset = pd.read_csv("data/etpc-paraphrase-generation-test-student.csv")
-    dev_dataset = pd.read_csv("data/etpc-paraphrase-dev.csv")
+    print("Loading data...")
+    full_train_dataset_df = pd.read_csv("data/etpc-paraphrase-train.csv")
+    test_dataset_df = pd.read_csv("data/etpc-paraphrase-detection-test-student.csv")
 
-    # You might do a split of the train data into train/validation set here
-    # ...
+    # --- Train/Validation Split ---
+    full_train_dataset_df = full_train_dataset_df.sample(frac=1, random_state=args.seed).reset_index(drop=True)
+    num_dev_samples = int(len(full_train_dataset_df) * args.dev_split_ratio)
 
-    train_data = transform_data(train_dataset)
-    dev_data = transform_data(dev_dataset)
-    test_data = transform_data(test_dataset)
+    if num_dev_samples == 0 and len(full_train_dataset_df) > 0:
+        num_dev_samples = 1
+    if num_dev_samples > len(full_train_dataset_df) - 1:
+        num_dev_samples = len(full_train_dataset_df) - 1 if len(full_train_dataset_df) > 0 else 0
 
-    print(f"Loaded {len(train_dataset)} training samples.")
+    if num_dev_samples > 0:
+        dev_df = full_train_dataset_df.iloc[:num_dev_samples]
+        train_df = full_train_dataset_df.iloc[num_dev_samples:]
+    else:
+        dev_df = full_train_dataset_df.copy()
+        train_df = full_train_dataset_df.copy()
 
-    model = train_model(model, train_data, dev_dataset, device, tokenizer)
+    print(f"Training with {len(train_df)} samples, validating with {len(dev_df)} samples.")
 
-    print("Training finished.")
+    # Transform data into DataLoaders
+    print("Transforming training data...")
+    train_dataloader = transform_data(train_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
+    print("Transforming development data...")
+    dev_dataloader = transform_data(dev_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
+    print("Transforming test data...")
+    test_dataloader = transform_data(test_dataset_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
 
-    bleu_score = evaluate_model(model, dev_dataset, device, tokenizer)
-    print(f"The penalized BLEU-score of the model is: {bleu_score:.3f}")
+    print(f"Loaded {len(train_df)} training samples for DataLoader.")
 
-    test_ids = test_dataset["id"]
-    test_results = test_model(test_data, test_ids, device, model, tokenizer)
-    test_results.to_csv(
-        "predictions/bart/etpc-paraphrase-generation-test-output.csv", index=False
+    # Train
+    model = train_model(
+        model,
+        train_dataloader,
+        dev_dataloader,
+        device,
+        num_epochs=args.num_epochs,
+        learning_rate=args.learning_rate,
+        early_stopping_patience=args.early_stopping_patience
     )
+
+    print("\nTraining finished.")
+    print("Evaluating on the development set one last time...")
+    val_accuracy, val_f1 = evaluate_model(model, dev_dataloader, device)
+    print(f"Final Development Accuracy: {val_accuracy:.3f}")
+    print(f"Final Development F1: {val_f1:.3f}")
+
+    # Test
+    test_ids = test_dataset_df["id"]
+    test_results_df = test_model(model, test_dataloader, test_ids, device)
+
+    # Save predictions
+    output_dir = "predictions/bart/"
+    os.makedirs(output_dir, exist_ok=True)
+    test_results_df.to_csv(os.path.join(output_dir, "etpc-paraphrase-detection-test-output.csv"), index=False)
+    print(f"Test predictions saved to {os.path.join(output_dir, 'etpc-paraphrase-detection-test-output.csv')}")
+
+    # ==== Save metrics ====
+    metrics = {
+        "job_id": args.job_id,
+        "approach": args.approach,
+        "epochs": args.num_epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "val_accuracy": val_accuracy,
+        "val_f1": val_f1
+    }
+    os.makedirs("metrics_logs", exist_ok=True)
+    outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"
+    with open(outfile, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"[INFO] Metrics saved to {outfile}")
 
 
 if __name__ == "__main__":
     args = get_args()
     seed_everything(args.seed)
-    finetune_paraphrase_generation(args)
+    finetune_paraphrase_detection(args)
