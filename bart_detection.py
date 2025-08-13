@@ -372,23 +372,28 @@ def seed_everything(seed=11711):
     torch.backends.cudnn.deterministic = True
 
 
+import argparse
+
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed", type=int, default=11711)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--use_gpu", action="store_true")
-    # Ensure these lines are present:
-    parser.add_argument("--num_epochs", type=int, default=5, help="Number of training epochs")
-    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for AdamW")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training and evaluation")
-    # And other arguments...
-    parser.add_argument("--max_length", type=int, default=128, help="Max sequence length for tokenizer")
-    parser.add_argument("--dev_split_ratio", type=float, default=0.1, help="Proportion of training data to use for development/validation")
-    parser.add_argument("--model_name", type=str, default="facebook/bart-large", help="Name of the BART model to use")
-    # --- New Argument for Early Stopping Patience ---
-    parser.add_argument("--early_stopping_patience", type=int, default=3, help="Number of epochs to wait for improvement in development loss before stopping.")
-    # --- End New Argument ---
-    args = parser.parse_args()
-    return args
+    parser.add_argument("--num_epochs", type=int, default=30)
+    parser.add_argument("--learning_rate", type=float, default=2e-5)
+    parser.add_argument("--batch_size", type=int, default=2)
+    parser.add_argument("--max_length", type=int, default=512)
+    parser.add_argument("--dev_split_ratio", type=float, default=0.1)
+    parser.add_argument("--model_name", type=str, default="facebook/bart-base")
+    parser.add_argument("--early_stopping_patience", type=int, default=4)
+
+    # ⬇️ Add these two new arguments
+    parser.add_argument("--approach", type=str, required=True,
+                        help="Short description/name of the experiment")
+    parser.add_argument("--job_id", type=str, required=True,
+                        help="SLURM job ID for tracking")
+
+    return parser.parse_args()
+
 
 
 def finetune_paraphrase_detection(args):
