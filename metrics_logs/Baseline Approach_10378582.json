@@ -1,0 +1,9 @@
+{
+  "job_id": "10378582",
+  "approach": "Baseline Approach",
+  "epochs": 30,
+  "batch_size": 2,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.9108616705183228,
+  "val_f1": 0.24896364054603287
+}
