@@ -50,7 +50,7 @@ python -u bart_detection.py \
     --batch_size 2 \
     --learning_rate 2e-5 \
     --early_stopping_patience 4 \
-    --approach "Baseline Approach" \
+    --approach "Make the head return logits + switch to BCEWithLogitsLoss (+ pos_weight)" \
     --job_id "${SLURM_JOB_ID}"
 
     

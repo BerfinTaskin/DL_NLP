@@ -1,0 +1,10 @@
+{
+  "job_id": "10380768",
+  "approach": "Make the head return logits + switch to BCEWithLogitsLoss (+ pos_weight)",
+  "epochs": 30,
+  "batch_size": 2,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.8623308022449654,
+  "val_mcc": 0.18698899488126086,
+  "val_loss": 2.1348993681434894
+}

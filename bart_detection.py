@@ -32,8 +32,8 @@ class BartWithClassifier(nn.Module):
         logits = self.classifier(cls_output)
 
         # Return the probabilities
-        probabilities = self.sigmoid(logits)
-        return probabilities
+        #probabilities = self.sigmoid(logits)
+        return logits
 
 
 # This mapping should be defined globally or passed appropriately if needed elsewhere.
@@ -151,105 +151,54 @@ def transform_data(dataset: pd.DataFrame, tokenizer_name: str = "facebook/bart-l
     return data_loader
 
 def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate=1e-5, early_stopping_patience=3):
-    """
-    Train the model. You can use any training loop you want. We recommend starting with
-    AdamW as your optimizer. You can take a look at the SST training loop for reference.
-    Think about your loss function and the number of epochs you want to train for.
-    You can also use the evaluate_model function to evaluate the
-    model on the dev set. Print the training loss, training accuracy, and dev accuracy at
-    the end of each epoch.
-    """
-    # 1. Set up the optimizer
-    optimizer = AdamW(model.parameters(), lr=learning_rate)
-
-    # 2. Set up the loss function
-    # BCELoss is suitable for multi-label binary classification problems
-    # where the model outputs probabilities (after a sigmoid).
-    criterion = nn.BCELoss()
-    criterion = criterion.to(device) # Move loss function to device
+    optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=0.01)
+    pos_weight = compute_pos_weight(train_data, device, num_labels=26)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(device)
 
     print(f"Starting training for {num_epochs} epochs on {device}...")
-
-    # --- Early Stopping Variables ---
-    best_dev_loss = float('inf')
-    epochs_no_improve = 0
-    patience = early_stopping_patience # Use the patience passed as an argument
-    # --- End Early Stopping Variables ---
+    best_dev_loss, epochs_no_improve = float('inf'), 0
 
     for epoch_i in range(num_epochs):
         print(f"\n======== Epoch {epoch_i + 1} / {num_epochs} ========")
-        print("Training...")
-
-        # Reset the total loss for this epoch.
-        total_train_loss = 0
-        model.train() # Put model in training mode.
+        model.train()
+        total_train_loss = 0.0
 
         for step, batch in enumerate(tqdm(train_data, desc="Batch Progress", disable=TQDM_DISABLE)):
-            # Move batch to device
             b_input_ids = batch[0].to(device)
             b_input_mask = batch[1].to(device)
             b_labels = batch[2].to(device)
 
-            model.zero_grad() # Clear previously calculated gradients
-
-            # Perform a forward pass (evaluate the model on this training batch).
-            # This will return the probabilities.
-            probabilities = model(input_ids=b_input_ids, attention_mask=b_input_mask)
-
-            # Calculate the loss.
-            # BCELoss expects target labels to be float.
-            loss = criterion(probabilities, b_labels.float())
+            optimizer.zero_grad()
+            logits = model(input_ids=b_input_ids, attention_mask=b_input_mask)
+            loss = criterion(logits, b_labels)
             total_train_loss += loss.item()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
 
-            loss.backward() # Perform a backward pass to calculate the gradients.
-            optimizer.step() # Update parameters
-
-        # Calculate the average loss over all of the batches.
         avg_train_loss = total_train_loss / len(train_data)
         print(f"  Average training loss: {avg_train_loss:.4f}")
 
-        # --- Validation ---
-        print("Running Validation...")
-        dev_accuracy, dev_mcc = evaluate_model(model, dev_data, device)
+        # Validation — now returns dev_loss too
+        dev_accuracy, dev_mcc, dev_loss = evaluate_model(model, dev_data, device, criterion=criterion)
+        print(f"  Dev Acc: {dev_accuracy:.4f} | Dev MCC: {dev_mcc:.4f} | Dev Loss: {dev_loss:.4f}")
 
-        # --- Calculate Validation Loss for Early Stopping ---
-        # Temporarily set model to eval mode to calculate validation loss
-        model.eval()
-        total_dev_loss = 0
-        with torch.no_grad():
-            for batch in dev_data:
-                b_input_ids = batch[0].to(device)
-                b_input_mask = batch[1].to(device)
-                b_labels = batch[2].to(device)
-                probabilities = model(input_ids=b_input_ids, attention_mask=b_input_mask)
-                loss = criterion(probabilities, b_labels.float())
-                total_dev_loss += loss.item()
-        avg_dev_loss = total_dev_loss / len(dev_data)
-        model.train() # Set model back to training mode
-        # --- End Calculate Validation Loss ---
-
-        print(f"  Development Accuracy: {dev_accuracy:.4f}")
-        print(f"  Development Matthews Correlation Coefficient: {dev_mcc:.4f}")
-        print(f"  Average Development Loss: {avg_dev_loss:.4f}") # Print development loss
-
-        # --- Early Stopping Logic ---
-        if avg_dev_loss < best_dev_loss:
-            best_dev_loss = avg_dev_loss
+        if dev_loss < best_dev_loss:
+            best_dev_loss = dev_loss
             epochs_no_improve = 0
-            # Optional: Save the best model state here
-            # torch.save(model.state_dict(), 'best_model.pth')
             print("  Development loss improved!")
         else:
             epochs_no_improve += 1
-            print(f"  Development loss did not improve. Patience: {epochs_no_improve}/{patience}")
+            print(f"  No improvement. Patience {epochs_no_improve}/{early_stopping_patience}")
 
-        if epochs_no_improve >= patience:
-            print(f"\nEarly stopping triggered after {epoch_i + 1} epochs. No improvement in development loss for {patience} consecutive epochs.")
-            break # Exit the training loop
-        # --- End Early Stopping Logic ---
+        if epochs_no_improve >= early_stopping_patience:
+            print(f"\nEarly stopping after {epoch_i + 1} epochs.")
+            break
 
     print("\nTraining complete!")
     return model
+
+
 
 
 def test_model(model, test_data, test_ids, device):
@@ -296,22 +245,22 @@ def test_model(model, test_data, test_ids, device):
     return results_df
 
 
-def evaluate_model(model, test_data, device):
+def evaluate_model(model, data_loader, device, criterion=None):
     """
-    This function measures the accuracy of our model's prediction on a given train/validation set
-    We measure how many of the 26 paraphrase types the model has predicted correctly for each data point..
+    Evaluate model on given data loader and return accuracy, MCC, and optional loss.
     """
     all_pred = []
     all_labels = []
-    model.eval() # Put model in evaluation mode
+    total_loss = 0.0
+    total_batches = 0
 
-    with torch.no_grad(): # Deactivate autograd for evaluation
-        for batch in test_data: # Assuming test_data here is actually dev_data with labels
-            # Dev data loader should yield input_ids, attention_mask, AND labels
+    model.eval()
+    with torch.no_grad():
+        for batch in data_loader:
             if len(batch) == 3:
                 input_ids, attention_mask, labels = batch
-                labels = labels.to(device) # Move labels to device
-            else: # Should not happen if dev_data is correctly prepared
+                labels = labels.to(device)
+            else:
                 print("Warning: Batch in evaluate_model does not contain labels.")
                 continue
 
@@ -319,15 +268,20 @@ def evaluate_model(model, test_data, device):
             attention_mask = attention_mask.to(device)
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            # Convert probabilities to binary predictions
+
+            # If criterion is provided, calculate dev loss
+            if criterion is not None:
+                loss = criterion(outputs, labels)
+                total_loss += loss.item()
+                total_batches += 1
+
             predicted_labels = (outputs > 0.5).int()
+            all_pred.append(predicted_labels.cpu())
+            all_labels.append(labels.cpu())
 
-            all_pred.append(predicted_labels.cpu()) # Move to CPU
-            all_labels.append(labels.cpu()) # Move to CPU
-
-    if not all_pred: # Handle empty dev set or issues
+    if not all_pred:
         print("Warning: No predictions made in evaluate_model. Returning 0 for metrics.")
-        return 0.0, 0.0
+        return 0.0, 0.0, float("inf")
 
     all_predictions_tensor = torch.cat(all_pred, dim=0)
     all_true_labels_tensor = torch.cat(all_labels, dim=0)
@@ -335,32 +289,41 @@ def evaluate_model(model, test_data, device):
     true_labels_np = all_true_labels_tensor.numpy()
     predicted_labels_np = all_predictions_tensor.numpy()
 
-    # Compute the accuracy for each label
     accuracies = []
     matthews_coefficients = []
-    for label_idx in range(true_labels_np.shape[1]): # Iterate over each of the 26 labels
+    for label_idx in range(true_labels_np.shape[1]):
         correct_predictions = np.sum(true_labels_np[:, label_idx] == predicted_labels_np[:, label_idx])
         total_samples = true_labels_np.shape[0]
-        if total_samples == 0: # Avoid division by zero
+        if total_samples == 0:
             label_accuracy = 0.0
             matth_coef = 0.0
         else:
             label_accuracy = correct_predictions / total_samples
-            # matthews_corrcoef can raise ValueError if predictions are all same for a label
             try:
                 matth_coef = matthews_corrcoef(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx])
             except ValueError:
-                matth_coef = 0.0 # Or handle as appropriate, e.g. by checking for constant arrays
-
+                matth_coef = 0.0
         accuracies.append(label_accuracy)
         matthews_coefficients.append(matth_coef)
 
-    # Calculate the average accuracy over all labels
-    accuracy = np.mean(accuracies) if accuracies else 0.0
-    matthews_coefficient = np.mean(matthews_coefficients) if matthews_coefficients else 0.0
+    accuracy = np.mean(accuracies)
+    mcc = np.mean(matthews_coefficients)
+    avg_loss = total_loss / total_batches if total_batches > 0 else float("inf")
 
-    model.train() # Set model back to training mode
-    return accuracy, matthews_coefficient
+    model.train()
+    return accuracy, mcc, avg_loss
+
+
+def compute_pos_weight(train_loader, device, num_labels=26):
+    total = torch.zeros(num_labels, dtype=torch.float64, device=device)
+    pos   = torch.zeros(num_labels, dtype=torch.float64, device=device)
+    for batch in train_loader:
+        y = batch[2].to(device)   # (B, 26)
+        total += y.size(0)
+        pos   += y.sum(dim=0)
+    neg = total - pos
+    w = torch.where(pos > 0, neg / pos, torch.ones_like(pos))  # fallback 1 if label never appears
+    return w.float()
 
 def seed_everything(seed=11711):
     random.seed(seed)
@@ -436,6 +399,10 @@ def finetune_paraphrase_detection(args):
 
     print(f"Loaded {len(train_df)} training samples for DataLoader.")
 
+    # Loss function for evaluation
+    pos_weight = compute_pos_weight(train_dataloader, device, num_labels=26)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).to(device)
+
     # Train
     model = train_model(
         model,
@@ -449,9 +416,10 @@ def finetune_paraphrase_detection(args):
 
     print("\nTraining finished.")
     print("Evaluating on the development set one last time...")
-    val_accuracy, val_f1 = evaluate_model(model, dev_dataloader, device)
+    val_accuracy, val_mcc, val_loss = evaluate_model(model, dev_dataloader, device, criterion=criterion)
     print(f"Final Development Accuracy: {val_accuracy:.3f}")
-    print(f"Final Development F1: {val_f1:.3f}")
+    print(f"Final Development MCC: {val_mcc:.3f}")
+    print(f"Final Development Loss: {val_loss:.4f}")
 
     # Test
     test_ids = test_dataset_df["id"]
@@ -471,7 +439,8 @@ def finetune_paraphrase_detection(args):
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
         "val_accuracy": val_accuracy,
-        "val_f1": val_f1
+        "val_mcc": val_mcc,
+        "val_loss": val_loss
     }
     os.makedirs("metrics_logs", exist_ok=True)
     outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"
