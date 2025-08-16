@@ -210,7 +210,9 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
 
         # --- Validation ---
         print("Running Validation...")
-        dev_accuracy, dev_mcc = evaluate_model(model, dev_data, device)
+        dev_accuracy, dev_mcc, dev_loss = evaluate_model(model, dev_data, device, criterion)
+        print(f"Dev Accuracy: {dev_accuracy:.4f}, Dev MCC: {dev_mcc:.4f}, Dev Loss: {dev_loss:.4f}")
+
 
         # --- Calculate Validation Loss for Early Stopping ---
         # Temporarily set model to eval mode to calculate validation loss
@@ -296,38 +298,36 @@ def test_model(model, test_data, test_ids, device):
     return results_df
 
 
-def evaluate_model(model, test_data, device):
-    """
-    This function measures the accuracy of our model's prediction on a given train/validation set
-    We measure how many of the 26 paraphrase types the model has predicted correctly for each data point..
-    """
+def evaluate_model(model, dev_data, device, criterion=None):
     all_pred = []
     all_labels = []
-    model.eval() # Put model in evaluation mode
+    total_loss = 0.0
+    num_batches = 0
 
-    with torch.no_grad(): # Deactivate autograd for evaluation
-        for batch in test_data: # Assuming test_data here is actually dev_data with labels
-            # Dev data loader should yield input_ids, attention_mask, AND labels
-            if len(batch) == 3:
-                input_ids, attention_mask, labels = batch
-                labels = labels.to(device) # Move labels to device
-            else: # Should not happen if dev_data is correctly prepared
-                print("Warning: Batch in evaluate_model does not contain labels.")
-                continue
-
-            input_ids = input_ids.to(device)
-            attention_mask = attention_mask.to(device)
+    model.eval()
+    with torch.no_grad():
+        for batch in dev_data:
+            input_ids, attention_mask, labels = batch
+            input_ids, attention_mask, labels = (
+                input_ids.to(device),
+                attention_mask.to(device),
+                labels.to(device),
+            )
 
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-            # Convert probabilities to binary predictions
             predicted_labels = (outputs > 0.5).int()
 
-            all_pred.append(predicted_labels.cpu()) # Move to CPU
-            all_labels.append(labels.cpu()) # Move to CPU
+            all_pred.append(predicted_labels.cpu())
+            all_labels.append(labels.cpu())
 
-    if not all_pred: # Handle empty dev set or issues
-        print("Warning: No predictions made in evaluate_model. Returning 0 for metrics.")
-        return 0.0, 0.0
+            # compute loss if criterion is provided
+            if criterion is not None:
+                loss = criterion(outputs, labels.float())
+                total_loss += loss.item()
+                num_batches += 1
+
+    if not all_pred:
+        return 0.0, 0.0, None
 
     all_predictions_tensor = torch.cat(all_pred, dim=0)
     all_true_labels_tensor = torch.cat(all_labels, dim=0)
@@ -335,32 +335,31 @@ def evaluate_model(model, test_data, device):
     true_labels_np = all_true_labels_tensor.numpy()
     predicted_labels_np = all_predictions_tensor.numpy()
 
-    # Compute the accuracy for each label
-    accuracies = []
-    matthews_coefficients = []
-    for label_idx in range(true_labels_np.shape[1]): # Iterate over each of the 26 labels
+    accuracies, matthews_coefficients = [], []
+    for label_idx in range(true_labels_np.shape[1]):
         correct_predictions = np.sum(true_labels_np[:, label_idx] == predicted_labels_np[:, label_idx])
         total_samples = true_labels_np.shape[0]
-        if total_samples == 0: # Avoid division by zero
-            label_accuracy = 0.0
-            matth_coef = 0.0
+        if total_samples == 0:
+            label_accuracy, matth_coef = 0.0, 0.0
         else:
             label_accuracy = correct_predictions / total_samples
-            # matthews_corrcoef can raise ValueError if predictions are all same for a label
             try:
-                matth_coef = matthews_corrcoef(true_labels_np[:, label_idx], predicted_labels_np[:, label_idx])
+                matth_coef = matthews_corrcoef(
+                    true_labels_np[:, label_idx],
+                    predicted_labels_np[:, label_idx]
+                )
             except ValueError:
-                matth_coef = 0.0 # Or handle as appropriate, e.g. by checking for constant arrays
-
+                matth_coef = 0.0
         accuracies.append(label_accuracy)
         matthews_coefficients.append(matth_coef)
 
-    # Calculate the average accuracy over all labels
-    accuracy = np.mean(accuracies) if accuracies else 0.0
-    matthews_coefficient = np.mean(matthews_coefficients) if matthews_coefficients else 0.0
+    avg_acc = np.mean(accuracies)
+    avg_mcc = np.mean(matthews_coefficients)
+    avg_loss = (total_loss / num_batches) if num_batches > 0 else None
 
-    model.train() # Set model back to training mode
-    return accuracy, matthews_coefficient
+    model.train()
+    return avg_acc, avg_mcc, avg_loss
+
 
 def seed_everything(seed=11711):
     random.seed(seed)
@@ -449,7 +448,8 @@ def finetune_paraphrase_detection(args):
 
     print("\nTraining finished.")
     print("Evaluating on the development set one last time...")
-    val_accuracy, val_f1 = evaluate_model(model, dev_dataloader, device)
+    val_accuracy, val_f1, val_loss = evaluate_model(model, dev_dataloader, device, nn.BCELoss().to(device))
+
     print(f"Final Development Accuracy: {val_accuracy:.3f}")
     print(f"Final Development F1: {val_f1:.3f}")
 
@@ -465,13 +465,14 @@ def finetune_paraphrase_detection(args):
 
     # ==== Save metrics ====
     metrics = {
-        "job_id": args.job_id,
-        "approach": args.approach,
-        "epochs": args.num_epochs,
-        "batch_size": args.batch_size,
-        "learning_rate": args.learning_rate,
-        "val_accuracy": val_accuracy,
-        "val_f1": val_f1
+    "job_id": args.job_id,
+    "approach": args.approach,
+    "epochs": args.num_epochs,
+    "batch_size": args.batch_size,
+    "learning_rate": args.learning_rate,
+    "val_accuracy": val_accuracy,
+    "val_f1": val_f1,
+    "val_loss": val_loss
     }
     os.makedirs("metrics_logs", exist_ok=True)
     outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"
