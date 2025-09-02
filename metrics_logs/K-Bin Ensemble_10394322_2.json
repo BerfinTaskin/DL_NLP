@@ -1,0 +1,10 @@
+{
+  "job_id": "10394322",
+  "approach": "K-Bin Ensemble",
+  "k_bins": 2,
+  "epochs": 30,
+  "batch_size": 2,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.8933641465830306,
+  "val_mcc": -0.010356744939532767
+}

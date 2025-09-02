@@ -1,0 +1,10 @@
+{
+  "job_id": "20250816A",
+  "approach": "kbin_ensemble",
+  "k_bins": 2,
+  "epochs": 5,
+  "batch_size": 16,
+  "learning_rate": 1e-05,
+  "val_accuracy": 0.9042588312974579,
+  "val_mcc": 0.006810904480872167
+}

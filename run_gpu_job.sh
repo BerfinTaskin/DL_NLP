@@ -49,9 +49,11 @@ python -u bart_detection.py \
     --num_epochs 30 \
     --batch_size 2 \
     --learning_rate 2e-5 \
-    --early_stopping_patience 4 \
-    --approach "Baseline Approach" \
-    --job_id "${SLURM_JOB_ID}"
+    --early_stopping_patience 5 \
+    --approach "K-Bin Ensemble" \
+    --job_id "${SLURM_JOB_ID}" \
+    --k_bins 4
+
 
     
 echo "GPU job finished!"

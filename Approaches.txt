@@ -1,2 +1,20 @@
 Approach 1 – Make the head return logits + switch to BCEWithLogitsLoss (+ pos_weight)_gradingclapping
 We modified the baseline by having the BART classification head return raw logits instead of applying a sigmoid inside the model. This allows us to use BCEWithLogitsLoss, which is numerically more stable than applying a separate sigmoid + BCELoss. To address label imbalance across the 26 paraphrase types, we also introduced a pos_weight vector computed from the training data. This weighting penalizes false negatives more heavily for underrepresented labels, improving the model’s robustness on rare paraphrase types.
+
+
+Approach 2 - K-Bin Ensemble Training
+
+In this approach, we extend the baseline BART classifier with an ensemble strategy.
+Instead of training a single model on the entire training set, we:
+
+Perform the usual train/dev split using a fixed random seed.
+
+Shuffle the training set once and split it into K equal bins.
+
+Train a separate BART classifier on each bin (no additional dev split per bin).
+
+At evaluation time, we run all trained models on the same dev and test sets.
+
+Predictions are aggregated by averaging probabilities across models, and final binary predictions are obtained by thresholding (default 0.5).
+
+This ensemble approach leverages diversity from multiple smaller models to improve generalization. The final metrics are reported on the dev set using the aggregated probabilities, and the same ensemble is used to produce test predictions.

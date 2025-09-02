@@ -252,6 +252,76 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
 
     print("\nTraining complete!")
     return model
+def train_bins_ensemble(
+    args, train_df, dev_df, test_df, device, num_labels=26
+):
+    # Build fixed dev/test loaders once
+    dev_loader  = transform_data(dev_df,  tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
+    test_loader = transform_data(test_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
+
+    # For dev metrics we need the dev labels as np array
+    # Re-tokenize dev_df to extract labels same way as transform_data did
+    # (simple rebuild here)
+    def labels_matrix(df):
+        Y = []
+        for s in df["paraphrase_type_ids"].astype(str):
+            try:
+                types = json.loads(s.replace("'", '"'))
+            except Exception:
+                types = []
+            vec = np.zeros(num_labels, dtype=int)
+            for t in set(types):
+                if t in ORIGINAL_TYPE_TO_INDEX_MAP:
+                    idx = ORIGINAL_TYPE_TO_INDEX_MAP[t]
+                    if 0 <= idx < num_labels:
+                        vec[idx] = 1
+            Y.append(vec)
+        return np.array(Y, dtype=int)
+
+    dev_labels = labels_matrix(dev_df)
+
+    # Split train into K bins (shuffled once with seed)
+    bins = split_into_bins(train_df, args.k_bins, args.seed)
+
+    dev_probs_accum  = []
+    test_probs_accum = []
+
+    for bi, bin_df in enumerate(bins, 1):
+        print(f"\n===== Bin {bi}/{args.k_bins}, size={len(bin_df)} =====")
+        bin_loader = transform_data(
+            bin_df, tokenizer_name=args.model_name,
+            max_length=args.max_length, batch_size=args.batch_size
+        )
+
+        # Fresh model per bin
+        model = BartWithClassifier(num_labels=num_labels).to(device)
+
+        # Train on this bin only
+        model = train_model(
+            model=model,
+            train_data=bin_loader,
+            dev_data=dev_loader,              # optional to see progress; doesn't affect split
+            device=device,
+            num_epochs=args.num_epochs,
+            learning_rate=args.learning_rate,
+            early_stopping_patience=args.early_stopping_patience
+        )
+
+        # Collect probabilities on dev/test
+        dev_probs  = predict_probs(model, dev_loader,  device)
+        test_probs = predict_probs(model, test_loader, device)
+
+        dev_probs_accum.append(dev_probs)
+        test_probs_accum.append(test_probs)
+
+    # Aggregate by averaging probabilities across models
+    dev_probs_ens  = np.mean(dev_probs_accum,  axis=0)
+    test_probs_ens = np.mean(test_probs_accum, axis=0)
+
+    # Compute dev metrics at 0.5 (or later: tune per-label thresholds using dev_probs_ens/dev_labels)
+    dev_acc, dev_mcc = metrics_from_probs(dev_probs_ens, dev_labels, thr=0.5)
+
+    return dev_acc, dev_mcc, dev_probs_ens, test_probs_ens
 
 
 def test_model(model, test_data, test_ids, device):
@@ -371,6 +441,37 @@ def seed_everything(seed=11711):
     torch.backends.cudnn.deterministic = True
 
 
+def split_into_bins(train_df: pd.DataFrame, k_bins: int, seed: int):
+    """Shuffle once with seed and split into k bins (as evenly as possible)."""
+    shuffled = train_df.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+    idx_bins = np.array_split(np.arange(len(shuffled)), k_bins)
+    return [shuffled.iloc[idx].reset_index(drop=True) for idx in idx_bins]
+
+@torch.no_grad()
+def predict_probs(model, data_loader, device):
+    """Return stacked probabilities [N,26] from your sigmoid model."""
+    model.eval()
+    probs_all = []
+    for batch in data_loader:
+        ids = batch[0].to(device)
+        mask = batch[1].to(device)
+        probs = model(input_ids=ids, attention_mask=mask)  # your model outputs probs
+        probs_all.append(probs.cpu().numpy())
+    return np.vstack(probs_all)
+
+def metrics_from_probs(probs: np.ndarray, labels: np.ndarray, thr: float = 0.5):
+    """Compute macro accuracy & macro MCC at a fixed threshold."""
+    from sklearn.metrics import matthews_corrcoef
+    preds = (probs >= thr).astype(int)
+    accs, mccs = [], []
+    for k in range(labels.shape[1]):
+        accs.append((preds[:,k] == labels[:,k]).mean())
+        try:
+            mccs.append(matthews_corrcoef(labels[:,k], preds[:,k]))
+        except ValueError:
+            mccs.append(0.0)
+    return float(np.mean(accs)), float(np.mean(mccs))
+
 import argparse
 
 def get_args():
@@ -390,6 +491,9 @@ def get_args():
                         help="Short description/name of the experiment")
     parser.add_argument("--job_id", type=str, required=True,
                         help="SLURM job ID for tracking")
+    parser.add_argument("--k_bins", type=int, default=0,
+                    help="If >0, split train into K bins, train K models and average probs.")
+
 
     return parser.parse_args()
 
@@ -423,62 +527,41 @@ def finetune_paraphrase_detection(args):
         dev_df = full_train_dataset_df.copy()
         train_df = full_train_dataset_df.copy()
 
-    print(f"Training with {len(train_df)} samples, validating with {len(dev_df)} samples.")
+    if args.k_bins and args.k_bins > 0:
+        print(f"[INFO] Running K-bin ensemble with K={args.k_bins}")
+        dev_acc, dev_mcc, dev_probs_ens, test_probs_ens = train_bins_ensemble(
+            args, train_df, dev_df, test_dataset_df, device
+        )
+        # Threshold at 0.5 (or load tuned thresholds)
+        test_preds = (test_probs_ens >= 0.5).astype(int)
 
-    # Transform data into DataLoaders
-    print("Transforming training data...")
-    train_dataloader = transform_data(train_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
-    print("Transforming development data...")
-    dev_dataloader = transform_data(dev_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
-    print("Transforming test data...")
-    test_dataloader = transform_data(test_dataset_df, tokenizer_name=args.model_name, max_length=args.max_length, batch_size=args.batch_size)
+        # Save predictions
+        output_dir = "predictions/bart/"
+        os.makedirs(output_dir, exist_ok=True)
+        out = pd.DataFrame({
+            "id": test_dataset_df["id"],
+            "Predicted_Paraphrase_Types": test_preds.tolist()
+        })
+        out.to_csv(os.path.join(output_dir, "etpc-paraphrase-detection-test-output.csv"), index=False)
+        print("[INFO] Saved ensemble predictions.")
 
-    print(f"Loaded {len(train_df)} training samples for DataLoader.")
+        # Save metrics
+        metrics = {
+            "job_id": args.job_id,
+            "approach": args.approach,
+            "k_bins": args.k_bins,
+            "epochs": args.num_epochs,
+            "batch_size": args.batch_size,
+            "learning_rate": args.learning_rate,
+            "val_accuracy": dev_acc,
+            "val_mcc": dev_mcc
+        }
+        os.makedirs("metrics_logs", exist_ok=True)
+        with open(f"metrics_logs/{args.approach}_{args.job_id}_{args.k_bins}.json", "w") as f:
+            json.dump(metrics, f, indent=2)
+        print("[INFO] Metrics saved.")
+        return
 
-    # Train
-    model = train_model(
-        model,
-        train_dataloader,
-        dev_dataloader,
-        device,
-        num_epochs=args.num_epochs,
-        learning_rate=args.learning_rate,
-        early_stopping_patience=args.early_stopping_patience
-    )
-
-    print("\nTraining finished.")
-    print("Evaluating on the development set one last time...")
-    val_accuracy, val_f1, val_loss = evaluate_model(model, dev_dataloader, device, nn.BCELoss().to(device))
-
-    print(f"Final Development Accuracy: {val_accuracy:.3f}")
-    print(f"Final Development F1: {val_f1:.3f}")
-
-    # Test
-    test_ids = test_dataset_df["id"]
-    test_results_df = test_model(model, test_dataloader, test_ids, device)
-
-    # Save predictions
-    output_dir = "predictions/bart/"
-    os.makedirs(output_dir, exist_ok=True)
-    test_results_df.to_csv(os.path.join(output_dir, "etpc-paraphrase-detection-test-output.csv"), index=False)
-    print(f"Test predictions saved to {os.path.join(output_dir, 'etpc-paraphrase-detection-test-output.csv')}")
-
-    # ==== Save metrics ====
-    metrics = {
-    "job_id": args.job_id,
-    "approach": args.approach,
-    "epochs": args.num_epochs,
-    "batch_size": args.batch_size,
-    "learning_rate": args.learning_rate,
-    "val_accuracy": val_accuracy,
-    "val_f1": val_f1,
-    "val_loss": val_loss
-    }
-    os.makedirs("metrics_logs", exist_ok=True)
-    outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"
-    with open(outfile, "w") as f:
-        json.dump(metrics, f, indent=2)
-    print(f"[INFO] Metrics saved to {outfile}")
 
 
 if __name__ == "__main__":
