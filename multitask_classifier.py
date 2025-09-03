@@ -170,6 +170,43 @@ def save_model(model, optimizer, args, config, filepath):
     torch.save(save_info, filepath)
     print(f"Saving the model to {filepath}.")
 
+# top of file
+import json
+import os
+
+# helper
+def update_metrics_log(args, task, val_accuracy):
+    # create folder for this task
+    os.makedirs(f"metrics_logs_{task}", exist_ok=True)
+    path = os.path.join(f"metrics_logs_{task}", f"{args.approach}.json")
+
+    data = {}
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError:
+                data = {}
+
+    # write top-level info once
+    data.setdefault("approach", args.approach)
+    data.setdefault("hyperparams", {
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "option": args.option,
+        "hidden_dropout_prob": args.hidden_dropout_prob
+    })
+
+    # write/update this task’s section
+    data[task] = {
+        "val_accuracy": float(val_accuracy)
+    }
+
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"[INFO] Metrics merged into {path}")
+
 
 # TODO Currently only trains on SST dataset!
 def train_multitask(args):
@@ -450,6 +487,11 @@ def train_multitask(args):
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
+    
+    # if you only want to log the BEST epoch, put this inside your "if dev_acc > best_dev_acc:" block
+    update_metrics_log(args, args.task, best_dev_acc)
+
+
 
 
 def test_model(args):
@@ -601,7 +643,9 @@ def get_args():
         default=1e-3 if args.option == "pretrain" else 1e-5,
     )
     parser.add_argument("--local_files_only", action="store_true")
-
+    parser.add_argument("--approach", type=str, required=True,
+                    help="Short name/description for the experiment")
+    
     args = parser.parse_args()
     return args
 
