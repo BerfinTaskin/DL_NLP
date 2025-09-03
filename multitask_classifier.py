@@ -26,6 +26,14 @@ from optimizer import AdamW
 TQDM_DISABLE = True
 
 
+def mean_pool(last_hidden, attention_mask):
+    # last_hidden: (B, T, H), attention_mask: (B, T)
+    mask = attention_mask.unsqueeze(-1).type_as(last_hidden)  # (B,T,1)
+    summed = (last_hidden * mask).sum(dim=1)                   # (B,H)
+    counts = mask.sum(dim=1).clamp(min=1e-6)                   # (B,1)
+    return summed / counts
+
+
 # fix the random seed
 def seed_everything(seed=11711):
     random.seed(seed)
@@ -79,16 +87,11 @@ class MultitaskBERT(nn.Module):
         self.paraphrase_type_linear = nn.Linear(2*BERT_HIDDEN_SIZE, 26)
 
     def forward(self, input_ids, attention_mask):
-        """Takes a batch of sentences and produces embeddings for them."""
-        # The final BERT embedding is the hidden state of [CLS] token (the first token).
-        # See BertModel.forward() for more details.
-        # Here, you can start by just returning the embeddings straight from BERT.
-        # When thinking of improvements, you can later try modifying this
-        # (e.g., by adding other layers).
         bert_output = self.bert(input_ids, attention_mask)
-        last_hidden = bert_output['last_hidden_state']
-        cls_embedding = last_hidden[:, 0, :] 
-        return cls_embedding
+        last_hidden = bert_output['last_hidden_state']   # (B,T,H)
+        pooled = mean_pool(last_hidden, attention_mask)  # (B,H)  <-- changed
+        return pooled
+
 
     def predict_sentiment(self, input_ids, attention_mask):
         """
@@ -152,6 +155,19 @@ class MultitaskBERT(nn.Module):
         cls_embedding = self.paraphrase_type_dropout(cls_embedding)
         output_logits = self.paraphrase_type_linear(cls_embedding)
         return output_logits
+
+def clone_state_dict(cpu_state):
+    return {k: v.clone() for k, v in cpu_state.items()}
+
+def average_state_dicts(state_dicts):
+    if not state_dicts:
+        return None
+    avg = {}
+    keys = state_dicts[0].keys()
+    for k in keys:
+        stacked = torch.stack([sd[k] for sd in state_dicts], dim=0)
+        avg[k] = stacked.mean(dim=0)
+    return avg
 
 def save_model(model, optimizer, args, config, filepath):
     # Create parent directories if they don't exist
@@ -268,6 +284,7 @@ def train_multitask(args):
             batch_size=args.batch_size,
             collate_fn=sts_dev_data.collate_fn,
         )
+        
     # Quora dataset
     if args.task == "qqp" or args.task == "multitask":
         quora_train_data = SentencePairDataset(quora_train_data, args)
@@ -302,6 +319,17 @@ def train_multitask(args):
             batch_size=args.batch_size,
             collate_fn=etpc_dev_data.collate_fn,
         )
+    # Build dataloaders above already
+    total_train_steps = 0
+    if sst_train_dataloader is not None:
+        total_train_steps += len(sst_train_dataloader)
+    if sts_train_dataloader is not None:
+        total_train_steps += len(sts_train_dataloader)
+    if quora_train_dataloader is not None:
+        total_train_steps += len(quora_train_dataloader)
+    if etpc_train_dataloader is not None:
+        total_train_steps += len(etpc_train_dataloader)
+    total_train_steps *= args.epochs
 
     # Init model
     config = {
@@ -327,6 +355,19 @@ def train_multitask(args):
     lr = args.lr
     optimizer = AdamW(model.parameters(), lr=lr)
     best_dev_acc = float("-inf")
+    
+    scheduler = None
+    if args.use_cosine_schedule and total_train_steps > 0:
+        warmup_steps = int(args.warmup_ratio * total_train_steps)
+        def lr_lambda(current_step):
+            if current_step < warmup_steps:
+                return float(current_step) / float(max(1, warmup_steps))
+            # cosine from warmup_steps .. total_train_steps
+            progress = float(current_step - warmup_steps) / float(max(1, total_train_steps - warmup_steps))
+            return 0.5 * (1.0 + np.cos(np.pi * progress))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+    best_dev_acc = float("-inf")
+    best_ckpts = []  # list of (dev_acc, state_dict_on_cpu)
 
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
@@ -352,9 +393,15 @@ def train_multitask(args):
 
                 optimizer.zero_grad()
                 logits = model.predict_sentiment(b_ids, b_mask)
-                loss = F.cross_entropy(logits, b_labels.view(-1))
+                loss = F.cross_entropy(
+                    logits, b_labels.view(-1),
+                    label_smoothing=getattr(args, "label_smoothing", 0.0)
+                )
+
                 loss.backward()
                 optimizer.step()
+                if scheduler is not None:
+                    scheduler.step()
 
                 train_loss += loss.item()
                 num_batches += 1
@@ -451,7 +498,7 @@ def train_multitask(args):
         quora_train_acc, _, _, sst_train_acc, _, _, sts_train_corr, _, _, etpc_train_acc, _, _ = (
             model_eval_multitask(
                 sst_train_dataloader,
-                quora_train_dataloader,
+                quora_train_datalo(B,H)ader,
                 sts_train_dataloader,
                 etpc_train_dataloader,
                 model=model,
@@ -487,7 +534,7 @@ def train_multitask(args):
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
-    
+
     # if you only want to log the BEST epoch, put this inside your "if dev_acc > best_dev_acc:" block
     update_metrics_log(args, args.task, best_dev_acc)
 
@@ -519,6 +566,14 @@ def get_args():
         choices=("sst", "sts", "qqp", "etpc", "multitask"),
         default="sst",
     )
+    parser.add_argument("--label_smoothing", type=float, default=0.1)
+    parser.add_argument("--warmup_ratio", type=float, default=0.1,
+                    help="Fraction of total steps to warm up")
+    parser.add_argument("--use_cosine_schedule", action="store_true",
+                        help="Enable warmup + cosine LR schedule")
+    parser.add_argument("--ckpt_avg_k", type=int, default=3,
+                    help="Average this many best checkpoints for the final model (SST)")
+
 
     # Model configuration
     parser.add_argument("--seed", type=int, default=11711)
