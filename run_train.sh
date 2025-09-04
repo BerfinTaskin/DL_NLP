@@ -48,16 +48,26 @@ echo -e "Uncommitted Changes: $(git status --porcelain | wc -l)\n"
 #    --task qqp --hidden_dropout_prob 0.1 \
 #    --approach "Baseline-QQP"
 
+#python -u multitask_classifier.py \
+#  --task sst \
+#  --option finetune \
+#  --use_gpu \
+#  --hidden_dropout_prob 0.1 \
+#  --label_smoothing 0.1 \
+#  --use_cosine_schedule \
+#  --warmup_ratio 0.1 \
+#  --ckpt_avg_k 3 \
+#  --approach "SST-meanpool-ls-cosine-avg"
+
 python -u multitask_classifier.py \
-  --task sst \
+  --task sts \
   --option finetune \
   --use_gpu \
   --hidden_dropout_prob 0.1 \
-  --label_smoothing 0.1 \
-  --use_cosine_schedule \
-  --warmup_ratio 0.1 \
-  --ckpt_avg_k 3 \
-  --approach "SST-meanpool-ls-cosine-avg"
+  --sts_beta 1.0 \
+  --early_stop_patience 3 \
+  --use_cosine_schedule --warmup_ratio 0.1 \
+  --approach "STS-meanpool-siamese-smoothl1-pearsonES"
 
 
 # ----------------------

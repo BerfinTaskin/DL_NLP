@@ -26,6 +26,17 @@ from optimizer import AdamW
 TQDM_DISABLE = True
 
 
+# === helpers (top of file) ===
+@torch.no_grad()
+def pearsonr_torch(x, y):
+    # x,y: (N,) float
+    vx = x - x.mean()
+    vy = y - y.mean()
+    denom = (vx.norm() * vy.norm()).clamp(min=1e-12)
+    return (vx * vy).sum() / denom
+
+
+
 def mean_pool(last_hidden, attention_mask):
     # last_hidden: (B, T, H), attention_mask: (B, T)
     mask = attention_mask.unsqueeze(-1).type_as(last_hidden)  # (B,T,1)
@@ -82,6 +93,17 @@ class MultitaskBERT(nn.Module):
         # similarity
         self.similarity_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.similarity_linear = nn.Linear(2*BERT_HIDDEN_SIZE, 1)
+        
+        # replace your old STS head with a Siamese MLP head
+        self.sts_hidden = 256
+        # input dim = 4H: [h1, h2, |h1-h2|, h1*h2]
+        self.similarity_mlp = nn.Sequential(
+            nn.Dropout(config.hidden_dropout_prob),
+            nn.Linear(4 * BERT_HIDDEN_SIZE, self.sts_hidden),
+            nn.GELU(),
+            nn.Dropout(config.hidden_dropout_prob),
+            nn.Linear(self.sts_hidden, 1),
+        )
         # paraphrase types
         self.paraphrase_type_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.paraphrase_type_linear = nn.Linear(2*BERT_HIDDEN_SIZE, 26)
@@ -91,7 +113,11 @@ class MultitaskBERT(nn.Module):
         last_hidden = bert_output['last_hidden_state']   # (B,T,H)
         pooled = mean_pool(last_hidden, attention_mask)  # (B,H)  <-- changed
         return pooled
-
+    # === inside MultitaskBERT (add a pooled encoder) ===
+    def encode_pooled(self, input_ids, attention_mask):
+        out = self.bert(input_ids, attention_mask)
+        last_hidden = out["last_hidden_state"]         # (B,T,H)
+        return mean_pool(last_hidden, attention_mask)  # (B,H)
 
     def predict_sentiment(self, input_ids, attention_mask):
         """
@@ -123,20 +149,14 @@ class MultitaskBERT(nn.Module):
         return output_logits
 
     def predict_similarity(self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2):
-        """
-        Given a batch of pairs of sentences, outputs a single logit corresponding to how similar they are.
-        Since the similarity label is a number in the interval [0,5], your output should be normalized to the interval [0,5];
-        it will be handled as a logit by the appropriate loss function.
-        Dataset: STS
-        """
-        ### TODO
-        cls_embedding_1 = self.forward(input_ids_1, attention_mask_1)
-        cls_embedding_2 = self.forward(input_ids_2, attention_mask_2)
-        cls_embedding = torch.cat((cls_embedding_1, cls_embedding_2), dim=1)
-        cls_embedding = self.similarity_dropout(cls_embedding)
-        output = self.similarity_linear(cls_embedding)
-        output = 5 * torch.sigmoid(output)
-        return output
+        h1 = self.encode_pooled(input_ids_1, attention_mask_1)    # (B,H)
+        h2 = self.encode_pooled(input_ids_2, attention_mask_2)    # (B,H)
+        diff = torch.abs(h1 - h2)
+        prod = h1 * h2
+        feats = torch.cat([h1, h2, diff, prod], dim=1)            # (B, 4H)
+        score = self.similarity_mlp(feats).squeeze(-1)            # (B,)
+        # raw score; we won't clamp here. We’ll train with SmoothL1 to target in [0,5].
+        return score
 
     def predict_paraphrase_types(
         self, input_ids_1, attention_mask_1, input_ids_2, attention_mask_2
@@ -189,6 +209,7 @@ def save_model(model, optimizer, args, config, filepath):
 # top of file
 import json
 import os
+
 
 # helper
 def update_metrics_log(args, task, val_accuracy):
@@ -367,7 +388,9 @@ def train_multitask(args):
             return 0.5 * (1.0 + np.cos(np.pi * progress))
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
     best_dev_acc = float("-inf")
-    best_ckpts = []  # list of (dev_acc, state_dict_on_cpu)
+ 
+    best_sts_pearson = float("-inf")
+    no_improve = 0
 
     # Run for the specified number of epochs
     for epoch in range(args.epochs):
@@ -425,13 +448,14 @@ def train_multitask(args):
                 b_ids_2 = b_ids_2.to(device)
                 b_mask_2 = b_mask_2.to(device)
                 b_labels = b_labels.to(device)
-
                 optimizer.zero_grad()
-                logits = model.predict_similarity(b_ids_1, b_mask_1, b_ids_2, b_mask_2)
-                loss = F.mse_loss(logits.view(-1), b_labels.view(-1))
+                pred = model.predict_similarity(b_ids_1, b_mask_1, b_ids_2, b_mask_2)   # (B,)
+                loss = torch.nn.functional.smooth_l1_loss(pred.view(-1), b_labels.view(-1),
+                                                        beta=args.sts_beta)
                 loss.backward()
                 optimizer.step()
-
+                if scheduler is not None:
+                    scheduler.step()
                 train_loss += loss.item()
                 num_batches += 1
 
@@ -534,6 +558,20 @@ def train_multitask(args):
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             save_model(model, optimizer, args, config, args.filepath)
+        if args.task == "sts":
+            current_dev_pearson = float(sts_dev_corr)  # already computed by your evaluator
+            if current_dev_pearson > best_sts_pearson:
+                best_sts_pearson = current_dev_pearson
+                no_improve = 0
+                # keep a checkpoint that matches your save logic
+                save_model(model, optimizer, args, config, args.filepath)
+                # you can also log here via update_metrics_log(...)
+            else:
+                no_improve += 1
+                if no_improve >= args.early_stop_patience:
+                    print(f"[EARLY STOP] STS: no Pearson improvement for {args.early_stop_patience} epochs.")
+                    break
+
 
     # if you only want to log the BEST epoch, put this inside your "if dev_acc > best_dev_acc:" block
     update_metrics_log(args, args.task, best_dev_acc)
@@ -557,6 +595,10 @@ def test_model(args):
 
 def get_args():
     parser = argparse.ArgumentParser()
+    
+    # in get_args()
+    parser.add_argument("--sts_beta", type=float, default=1.0, help="SmoothL1 beta for STS")
+    parser.add_argument("--early_stop_patience", type=int, default=2, help="patience (epochs) for STS Pearson early stop")
 
     # Training task
     parser.add_argument(
