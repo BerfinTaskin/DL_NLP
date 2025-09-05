@@ -44,7 +44,6 @@ N_SENTIMENT_CLASSES = 5
 class MultitaskBERT(nn.Module):
     """
     This module should use BERT for these tasks:
-
     - Sentiment classification (predict_sentiment)
     - Paraphrase detection (predict_paraphrase)
     - Semantic Textual Similarity (predict_similarity)
