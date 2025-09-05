@@ -12,6 +12,9 @@
 #SBATCH --output=./slurm_files/slurm-%x-%j.out
 #SBATCH --error=./slurm_files/slurm-%x-%j.err
 
+
+# Create the slurm_files directory if it doesn't exist
+mkdir -p ./slurm_files
 # Activate your environment
 source activate dnlp
 
@@ -48,16 +51,16 @@ echo -e "Uncommitted Changes: $(git status --porcelain | wc -l)\n"
 #    --task qqp --hidden_dropout_prob 0.1 \
 #    --approach "Baseline-QQP"
 
-#python -u multitask_classifier.py \
-#  --task sst \
-#  --option finetune \
-#  --use_gpu \
-#  --hidden_dropout_prob 0.1 \
-#  --label_smoothing 0.1 \
-#  --use_cosine_schedule \
-#  --warmup_ratio 0.1 \
-#  --ckpt_avg_k 3 \
-#  --approach "SST-meanpool-ls-cosine-avg"
+python -u multitask_classifier.py \
+  --task sst \
+  --option finetune \
+  --use_gpu \
+  --hidden_dropout_prob 0.1 \
+  --label_smoothing 0.1 \
+  --use_cosine_schedule \
+  --warmup_ratio 0.1 \
+  --ckpt_avg_k 3 \
+  --approach "SST-meanpool-ls-cosine-avg"
 
 python -u multitask_classifier.py \
   --task sts \

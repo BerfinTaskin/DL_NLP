@@ -522,7 +522,7 @@ def train_multitask(args):
         quora_train_acc, _, _, sst_train_acc, _, _, sts_train_corr, _, _, etpc_train_acc, _, _ = (
             model_eval_multitask(
                 sst_train_dataloader,
-                quora_train_datalo(B,H)ader,
+                quora_train_dataloader,
                 sts_train_dataloader,
                 etpc_train_dataloader,
                 model=model,

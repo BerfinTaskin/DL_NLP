@@ -1,0 +1,13 @@
+{
+  "approach": "STS-meanpool-siamese-smoothl1-pearsonES",
+  "hyperparams": {
+    "epochs": 10,
+    "batch_size": 64,
+    "learning_rate": 1e-05,
+    "option": "finetune",
+    "hidden_dropout_prob": 0.1
+  },
+  "sts": {
+    "val_accuracy": 0.42067692405372115
+  }
+}
