@@ -1,0 +1,10 @@
+{
+  "job_id": "10789808",
+  "approach": "mean-pool-dropout on Baseline Approach",
+  "epochs": 30,
+  "batch_size": 2,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.9123473093430174,
+  "val_f1": 0.22487812057445256,
+  "val_loss": 0.2944282869147694
+}

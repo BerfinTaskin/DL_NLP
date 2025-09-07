@@ -21,15 +21,18 @@ class BartWithClassifier(nn.Module):
         self.bart = BartModel.from_pretrained("facebook/bart-large", local_files_only=False)
         self.classifier = nn.Linear(self.bart.config.hidden_size, num_labels)
         self.sigmoid = nn.Sigmoid()
-
+        self.dropout = nn.Dropout(p=0.1)
+    def _mean_pool(self, last_hidden_state, attention_mask):
+        mask = attention_mask.unsqueeze(-1).type_as(last_hidden_state)  # (B,T,1)
+        summed = (last_hidden_state * mask).sum(dim=1)                  # (B,H)
+        counts = mask.sum(dim=1).clamp(min=1e-6)                        # (B,1)
+        return summed / counts
     def forward(self, input_ids, attention_mask=None):
         # Use the BartModel to obtain the last hidden state
         outputs = self.bart(input_ids=input_ids, attention_mask=attention_mask)
-        last_hidden_state = outputs.last_hidden_state
-        cls_output = last_hidden_state[:, 0, :]
-
-        # Add an additional fully connected layer to obtain the logits
-        logits = self.classifier(cls_output)
+        pooled = self._mean_pool(outputs.last_hidden_state, attention_mask)  # (B,H)
+        pooled = self.dropout(pooled)
+        logits = self.classifier(pooled)  # (B,26), UNnormalized
 
         # Return the probabilities
         probabilities = self.sigmoid(logits)
