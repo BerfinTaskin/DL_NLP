@@ -1,4 +1,5 @@
 train_utils_jonathan
+improvements_sts/logs
 
 # DNLP suggestions
 *.ckpt

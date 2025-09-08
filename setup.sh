@@ -19,3 +19,5 @@ conda install tqdm==4.66.2 requests==2.31.0 transformers==4.38.2 tensorboard==2.
 pip install explainaboard-client==0.1.4 sacrebleu==2.4.0 numpy==1.26.4
 pip install peft==0.11.1
 pip install nltk==3.9.1
+pip install inflect==7.5.0
+pip install wordfreq==3.1.1

@@ -1,19 +1,62 @@
-from torch.utils.data import Dataset
-import torch
-import random
 import nltk
-from nltk.corpus import wordnet
-from tokenizer import BertTokenizer
-
 nltk.download("wordnet")
 nltk.download("omw-1.4")
 nltk.download("punkt")
 nltk.download("stopwords")
-
+nltk.download("averaged_perceptron_tagger_eng")
 from nltk.corpus import stopwords
+from nltk import pos_tag
+from nltk.corpus import wordnet
+from nltk.stem import WordNetLemmatizer
+lemmatizer = WordNetLemmatizer()
+from torch.utils.data import Dataset
+import torch
+import random
+from tokenizer import BertTokenizer
+from wordfreq import zipf_frequency
+import inflect
+p = inflect.engine()
 STOPWORDS = set(stopwords.words("english"))
 
-def synonym_replacement(sentence, n=1):
+def get_wordnet_pos(word):
+    """Map POS tag from nltk.pos_tag to WordNet POS."""
+    tag = pos_tag([word])[0][1][0].upper()
+    tag_dict = {"J": wordnet.ADJ,
+                "N": wordnet.NOUN,
+                "V": wordnet.VERB,
+                "R": wordnet.ADV}
+    return tag_dict.get(tag, wordnet.NOUN)
+
+def filter_synonyms(base, synonyms, threshold=2.5):
+    """Filter synonyms by frequency, blacklist rules, and exclude weird ones."""
+    filtered = []
+    for s in synonyms:
+        if (len(s) <= 15
+            and s.isalpha()
+            and zipf_frequency(s, "en") >= threshold):
+            filtered.append(s)
+    return filtered
+
+def match_morphology(original, synonym):
+    """Try to match plural/verb tense form of the original word."""
+    # Plural handling
+    if original.endswith("s") and not synonym.endswith("s"):
+        return p.plural(synonym)
+    if not original.endswith("s") and synonym.endswith("s"):
+        return p.singular_noun(synonym) or synonym
+    # Verb tense (very rough)
+    if original.endswith("ing") and not synonym.endswith("ing"):
+        return synonym + "ing"
+    if original.endswith("ed") and not synonym.endswith("ed"):
+        return synonym + "ed"
+    return synonym
+
+def synonym_replacement(sentence, n):
+    """
+    Replace up to n non-stopwords in the sentence with a random synonym
+    that matches the word's POS, filters out multi-word phrases and numbers,
+    and applies frequency/morphology/capitalization improvements.
+    """
     words = nltk.word_tokenize(sentence)
     new_words = words.copy()
     random_word_list = [w for w in words if w.lower() not in STOPWORDS]
@@ -21,18 +64,41 @@ def synonym_replacement(sentence, n=1):
 
     num_replaced = 0
     for random_word in random_word_list:
-        synonyms = wordnet.synsets(random_word)
-        if synonyms:
-            synonym = synonyms[0].lemmas()[0].name()
-            if synonym != random_word:
-                new_words = [synonym if w == random_word else w for w in new_words]
-                num_replaced += 1
-        if num_replaced >= n:  # only replace up to n words
-            break
+        pos = get_wordnet_pos(random_word)
+        base = lemmatizer.lemmatize(random_word.lower(), pos=pos)
 
+        synonyms = set()
+        for syn in wordnet.synsets(base, pos=pos)[:2]:
+            for lemma in syn.lemmas():
+                synonym = lemma.name().replace("_", " ")
+                if synonym.lower() != base:
+                    synonyms.add(synonym)
+
+        # apply filters
+        synonyms = filter_synonyms(base, synonyms)
+        if synonyms:
+            synonym = random.choice(synonyms)
+            synonym = match_morphology(random_word, synonym)
+
+            # capitalization
+            if random_word[0].isupper():
+                synonym = synonym.capitalize()
+
+            for i, w in enumerate(new_words):
+                if w == random_word:
+                    new_words[i] = synonym
+                    num_replaced += 1
+                    break
+        if num_replaced >= n:
+            break
     return " ".join(new_words)
 
-def random_deletion(sentence, p=0.1):
+def random_deletion(sentence, p):
+    """
+    Randomly delete each word in the sentence with probability p.
+    If all words are removed, keep one random word.
+    This simulates missing or noisy tokens.
+    """
     words = nltk.word_tokenize(sentence)
     if len(words) == 1:  # nothing to delete
         return sentence
@@ -41,7 +107,11 @@ def random_deletion(sentence, p=0.1):
         new_words = [random.choice(words)]
     return " ".join(new_words)
 
-def random_swap(sentence, n=1):
+def random_swap(sentence, n):
+    """
+    Randomly swap the positions of two words in the sentence, repeated n times.
+    Introduces small word-order perturbations while retaining content.
+    """
     words = nltk.word_tokenize(sentence)
     for _ in range(n):
         if len(words) < 2:
@@ -50,18 +120,14 @@ def random_swap(sentence, n=1):
         words[idx1], words[idx2] = words[idx2], words[idx1]
     return " ".join(words)
 
-def augment_sentence(sentence):
-    """Apply a random augmentation strategy."""
-    aug_choice = random.choice(["synonym", "deletion", "swap", "none"])
-    if aug_choice == "synonym":
-        return synonym_replacement(sentence, n=1)
-    elif aug_choice == "deletion":
-        return random_deletion(sentence, p=0.1)
-    elif aug_choice == "swap":
-        return random_swap(sentence, n=1)
-    else:
-        return sentence
-    
+def augment_sentence(sentence, augment_prob):
+    if random.random() < augment_prob:
+        sentence = synonym_replacement(sentence, n=1)
+    if random.random() < augment_prob:
+        sentence = random_deletion(sentence, p=0.1)
+    if random.random() < augment_prob:
+        sentence = random_swap(sentence, n=1)
+    return sentence
     
 class SentencePairDataset(Dataset):
     def __init__(self, dataset, args, isRegression=False, augment_prob=0):
@@ -78,13 +144,10 @@ class SentencePairDataset(Dataset):
 
     def __getitem__(self, idx):
         sent1, sent2, label, sent_id = self.dataset[idx]
-        if self.augment_prob > 0:
-            if random.random() < self.augment_prob:
-                sent1 = augment_sentence(sent1)
-            if random.random() < self.augment_prob:
-                sent2 = augment_sentence(sent2)
-            if random.random() < self.augment_prob:
-                sent1, sent2 = sent2, sent1
+        sent1 = augment_sentence(sent1, self.augment_prob)
+        sent2 = augment_sentence(sent2, self.augment_prob)
+        if random.random() < self.augment_prob:
+            sent1, sent2 = sent2, sent1
         return (sent1, sent2, label, sent_id)
 
     def pad_data(self, data):
