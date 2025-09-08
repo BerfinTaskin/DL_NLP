@@ -13,7 +13,7 @@ export HTTP_PROXY="http://www-cache.gwdg.de:3128"
 echo "Activating conda..."
 source /user/henrich1/u12041/scratch/scratch_rzg/conda/etc/profile.d/conda.sh
 conda activate dnlp
-cd /user/henrich1/u12041/repos/nlp_stuff/DL_NLP_jonathan
+cd /user/henrich1/u12041/repos/nlp_stuff/DL_NLP
 
 ############################### built upon config 2 from baseline_param_search1.sh
 ############################### === Configuration ===

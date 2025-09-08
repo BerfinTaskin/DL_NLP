@@ -13,7 +13,7 @@ export HTTP_PROXY="http://www-cache.gwdg.de:3128"
 echo "Activating conda..."
 source /user/henrich1/u12041/scratch/scratch_rzg/conda/etc/profile.d/conda.sh
 conda activate dnlp
-cd /user/henrich1/u12041/repos/nlp_stuff/DL_NLP # started at 12:45
+cd /user/henrich1/u12041/repos/nlp_stuff/DL_NLP
 
 ############################### === Configuration ===
 LOG_NAME="dropout_search1"   # <-- change this to your desired name
