@@ -128,7 +128,7 @@ To obtain a strong baseline, we conducted a basic hyperparameter search using th
 
 Based on this configuration, we tested the influence of each of the five proposed improvements individually. In each of these five experiments, we kepts the baseline parameters fixed and only activated one of the improvements. 
 - For the data augmentation experiment, we set `augment_prob` to 0.25. 
-- For LORA, the experiment included 5 different configurations for the rank `lora_r`, the scaling factor `lora_alpha` and `lora_dropout`. These five configurations were:
+- For LORA, the experiment included 5 different configurations for the rank `lora_r`, the scaling factor `lora_alpha` and `lora_dropout`. The results for the best one are reported in the results section. These five configurations were:
 
 | Config | `lora_r` | `lora_alpha` | `lora_dropout` |
 |-------:|:--------:|:------------:|:--------------:|
@@ -181,14 +181,14 @@ Summarize all the results of your experiments in tables:
 |Improvement 2        |52.11%|...|
 |...        |...|...|
 
-| **Semantic Textual Similarity (STS)** | **Correlation** |
-|---------------------------------------|-----------------|
-| Baseline                              | 0.365           |
-| LORA                         |            |
-| Data augmentations                         |0.350           |
-| Negative Pearson Loss                         | 0.334          |
-| Mean-pooling embedding                         |0.335           |
-| Cosine similarity                         | 0.718          |
+| **Semantic Textual Similarity (STS)** | **Correlation** | **Interpretation** |
+|---------------------------------------|-----------------|--------------------------------|
+| Baseline                              | 0.365           |     baseline         |        
+| LORA                         |         0.347   |   much more efficient (tradeoff)         |
+| Data augmentations                         |0.350           |  ineffective        |
+| Negative Pearson Loss                         | 0.334          |  ineffective   |
+| Mean-pooling embedding                         |0.335           |    ineffective     |
+| Cosine similarity                         | 0.718          |   better objective   |
 
 
 | **Paraphrase Type Detection (PTD)** | **Metric 1** |**Metric n** |
