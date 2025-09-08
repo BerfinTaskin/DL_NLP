@@ -178,7 +178,8 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
     epochs_no_improve = 0
     patience = early_stopping_patience # Use the patience passed as an argument
     # --- End Early Stopping Variables ---
-
+    train_loss = []
+    val_loss = []
     for epoch_i in range(num_epochs):
         print(f"\n======== Epoch {epoch_i + 1} / {num_epochs} ========")
         print("Training...")
@@ -216,7 +217,7 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
         dev_accuracy, dev_mcc, dev_loss = evaluate_model(model, dev_data, device, criterion)
         print(f"Dev Accuracy: {dev_accuracy:.4f}, Dev MCC: {dev_mcc:.4f}, Dev Loss: {dev_loss:.4f}")
 
-
+  
         # --- Calculate Validation Loss for Early Stopping ---
         # Temporarily set model to eval mode to calculate validation loss
         model.eval()
@@ -232,7 +233,8 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
         avg_dev_loss = total_dev_loss / len(dev_data)
         model.train() # Set model back to training mode
         # --- End Calculate Validation Loss ---
-
+        train_loss.append(avg_train_loss)
+        val_loss.append(avg_dev_loss)
         print(f"  Development Accuracy: {dev_accuracy:.4f}")
         print(f"  Development Matthews Correlation Coefficient: {dev_mcc:.4f}")
         print(f"  Average Development Loss: {avg_dev_loss:.4f}") # Print development loss
@@ -254,7 +256,7 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
         # --- End Early Stopping Logic ---
 
     print("\nTraining complete!")
-    return model
+    return model,train_loss,val_loss
 
 
 def test_model(model, test_data, test_ids, device):
@@ -439,7 +441,7 @@ def finetune_paraphrase_detection(args):
     print(f"Loaded {len(train_df)} training samples for DataLoader.")
 
     # Train
-    model = train_model(
+    model,train_loss,val_loss = train_model(
         model,
         train_dataloader,
         dev_dataloader,
@@ -475,7 +477,9 @@ def finetune_paraphrase_detection(args):
     "learning_rate": args.learning_rate,
     "val_accuracy": val_accuracy,
     "val_f1": val_f1,
-    "val_loss": val_loss
+    "val_loss": val_loss,
+    'train_loss_array':train_loss,
+    'val_loss_array':val_loss
     }
     os.makedirs("metrics_logs", exist_ok=True)
     outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"

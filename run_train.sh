@@ -1,34 +1,55 @@
 #!/bin/bash
 #SBATCH --job-name=train-multitask_classifier
-#SBATCH -t 00:20:00                  # estimated time # TODO: adapt to your needs
-#SBATCH -p grete                     # the partition you are training on (i.e., which nodes), for nodes see sinfo -p grete:shared --format=%N,%G
-#SBATCH -G A100:1                    # take 1 GPU, see https://docs.hpc.gwdg.de/compute_partitions/gpu_partitions/index.html for more options
-#SBATCH --mem-per-gpu=8G             # setting the right constraints for the splitted gpu partitions
-#SBATCH --nodes=1                    # total number of nodes
-#SBATCH --ntasks=1                   # total number of tasks
-#SBATCH --cpus-per-task=8            # number cores per task
-#SBATCH --mail-type=all              # send mail when job begins and ends
-#SBATCH --mail-user=TODO@stud.uni-goettingen.de   
-#SBATCH --output=./slurm_files/slurm-%x-%j.out     # where to write output, %x give job name, %j names job id
-#SBATCH --error=./slurm_files/slurm-%x-%j.err      # where to write slurm error
+#SBATCH -t 02:00:00                  # increased time so all tasks can finish
+#SBATCH -p grete
+#SBATCH -G A100:1
+#SBATCH --mem-per-gpu=8G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mail-type=all
+#SBATCH --mail-user=TODO@stud.uni-goettingen.de
+#SBATCH --output=./slurm_files/slurm-%x-%j.out
+#SBATCH --error=./slurm_files/slurm-%x-%j.err
 
-source activate dnlp # Or whatever you called your environment.
 
-# Printing out some info.
+# Create the slurm_files directory if it doesn't exist
+mkdir -p ./slurm_files
+# Activate your environment
+source activate dnlp
+
+# Debug info
 echo "Submitting job with sbatch from directory: ${SLURM_SUBMIT_DIR}"
 echo "Home directory: ${HOME}"
 echo "Working directory: $PWD"
 echo "Current node: ${SLURM_NODELIST}"
 
-# For debugging purposes.
 python --version
 python -m torch.utils.collect_env 2> /dev/null
 
-# Print out some git info.
 module load git
 echo -e "\nCurrent Branch: $(git rev-parse --abbrev-ref HEAD)"
 echo "Latest Commit: $(git rev-parse --short HEAD)"
 echo -e "Uncommitted Changes: $(git status --porcelain | wc -l)\n"
 
-# Run the script:
-python -u multitask_classifier.py --use_gpu --local_files_only --option finetune --task sst --hidden_dropout_prob 0.1
+python -u multitask_classifier.py \
+  --use_gpu --option finetune \
+  --task sts --hidden_dropout_prob 0.1 \
+  --sts_beta 1.0 --early_stop_patience 3 \
+  --use_cosine_schedule --warmup_ratio 0.1 \
+  --k_bins 3 --bin_seed 2024 \
+  --approach "STS-kbins5-meanpool-smoothl1-cosine"
+
+
+python -u multitask_classifier.py \
+  --use_gpu --option finetune \
+  --task sst --hidden_dropout_prob 0.1 \
+  --label_smoothing 0.1 \
+  --use_cosine_schedule --warmup_ratio 0.1 \
+  --k_bins 3 --bin_seed 2024 \
+  --approach "SST-kbins5-meanpool-cosine-ls01"
+
+
+
+# ----------------------
+echo "All tasks finished!"
