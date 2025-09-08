@@ -29,6 +29,7 @@ The baseline results can be obtained as described by using the standard `multita
 # Best improvements
 ### BERT sentiment analysis
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
 ### BERT semantic textual similarity:
 Running the training script for the best improvement for the STS task can be done as follows:
 ```
@@ -46,10 +47,14 @@ python improvements_sts.py \
     --lr_head 1e-4 \
     --batch_size 128 \
 ```
+
 ### BERT Paraphrase Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
-### BART generation
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+### BART Generation
+Running the training script for the best improvement for the BART Generation task can be done as follows:
+python3 bart_generation.py --use_gpu
+
 ### BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
@@ -83,38 +88,44 @@ We aimed to improve upon the baseline using several small measures that are prov
 BERT Paraphrase Detection
 
 ### BERT Paraphrase Detection
-### BART generation
 
-We implemented a Sample-and-Rerank (Rerank@k) generation strategy that focuses on balancing meaning and diversity in text generation. Here's our approach:
-
-1. **Sample k candidates per input** using stochastic decoding with the following parameters:
-   - top-p = 0.9
-   - temperature = 0.9
-   - no_repeat_ngram_size = 3
-   - max_length = 50
-
-2. **Score each candidate** using a non-transformer reward that balances meaning vs. diversity through:
-   - Semantic similarity: Using TF-IDF word cosine and TF-IDF character (3-5) cosine, averaged
-   - WordNet soft overlap (optional): Giving credit for synonym matches (no context models)
-   - Copy penalties:
-     - n-gram overlap (1-4) between candidate and source (PINC-style)
-     - Self-BLEU(candidate, source) as an additional copying proxy
-     - Length penalty: |len(y)-len(x)| / len(x)
-
-3. **Pick the best candidate** by the combined score using the following formula:
-   R(x,y) = α·TFIDF_avg(x,y) + ε·WordNet(x,y) - β·Overlap(x,y) - γ·SelfBLEU(x,y) - δ·LenPenalty(x,y)
-
-Default weights used:
-- α = 1.0 
-- β = 0.30
-- γ = 0.20
-- δ = 0.10
-- ε = 0.20
-- k = 10 (also tested with k∈{5,10,20})
-
-This approach maintains rule-compliance by not using extra transformer embeddings while explicitly balancing the trade-off between adequacy and diversity in the generated text.
-### BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+### BART Generation
+
+We improved the **BART paraphrase generation** baseline along four axes: data handling, optimization, decoding, and evaluation.
+
+**Data handling**
+- The finetuned system reuses a single tokenizer across the pipeline and **pre-tokenizes targets** once in the dataloader, avoiding per-batch retokenization.
+- The dataloader is configured with CUDA-friendly options (e.g., `pin_memory`, worker processes), which reduces host–device transfer overhead.
+- The code also supports **optional control tokens** (e.g., `<SEP>`, `<TYPE_k>`) that can encode paraphrase constraints (span or type) directly in the input sequence, enabling conditional generation when such metadata is available.
+
+**Optimization and training stability**
+- The training loop replaces plain SGD-like updates with **AdamW** (decoupled weight decay), couples it with a **linear warmup + linear decay** learning-rate schedule, and adds **gradient clipping**.
+- To increase the effective batch size under limited GPU memory, the loop employs **gradient accumulation**, where the effective batch is \( B_{\text{eff}} = B \times \text{accum} \).
+- Training uses **mixed-precision (AMP)** with dynamic loss scaling, which both accelerates throughput and reduces numerical instabilities on GPU.
+- Finally, the model is validated after each epoch on a held-out development set, with **early stopping** and **best-checkpoint selection**; this prevents overfitting and ensures that downstream evaluation uses the strongest model rather than the last epoch.
+
+**Decoding strategy**
+- Inference uses beam search with **n-gram blocking** (`no_repeat_ngram_size`) and a tunable **length penalty**.
+- These constraints are known to reduce degeneracies such as verbatim copying and short, repetitive outputs—critical for paraphrase tasks where surface diversity is desirable.
+
+**Evaluation metric (correctness and copy penalty)**
+The baseline originally computed SacreBLEU with reversed arguments. We fix the orientation and report:
+
+- `BLEU_ref = BLEU(predictions, references)`
+- `BLEU_inp = BLEU(predictions, inputs)`
+
+To explicitly discourage copying from the input, we use the penalized BLEU:
+
+- `pBLEU = BLEU_ref * (100 - BLEU_inp) / 52`
+
+Here, `100 - BLEU_inp` acts as a “diversity” factor and the constant 52 rescales to a 0–100 range (as defined in the assignment). This metric rewards outputs that are both faithful to references and **lexically distinct** from the inputs.
+
+**Empirical Outcome**
+
+Under identical data and evaluation conditions, the finetuned system improves **penalized BLEU** from **8.95** (baseline) to **19.59**. The gain is driven primarily by reduced input copying (lower \( \text{BLEU}_{\text{inp}} \)), with a modest trade-off in raw BLEU vs. references—consistent with the objective of producing paraphrases rather than near-copies.
+
 
 # Experiments
 ### BERT sentiment analysis
@@ -140,8 +151,36 @@ Based on this configuration, we tested the influence of each of the five propose
 
 ### BERT Paraphrase Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
-### BART generation
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+### BART Generation
+We compare a **baseline BART-large** paraphrase generator against an **improved finetuned variant** on the ETPC dataset (train/dev/test).
+
+**Evaluation**
+- `BLEU_ref = BLEU(predictions, references)`
+- `BLEU_inp = BLEU(predictions, inputs)` (measures similarity to the source; lower means less copying)
+- **Penalized BLEU (assignment metric):**
+
+- We expected:
+- A more stable optimization recipe (AdamW + warmup/decay, gradient clipping/accumulation, AMP) and **early stopping** should improve generalization.
+- **Decoding constraints** (n-gram blocking, length penalty) should **reduce copying**, increasing `100 - BLEU_inp`, and thus improve `pBLEU`, even if `BLEU_ref` drops slightly.
+
+**Per-epoch trend (finetuned):**
+
+| Epoch | BLEU vs refs | BLEU vs inputs | pBLEU |
+|------:|--------------|----------------|------:|
+| 1     | 48.84        | 95.53          | 4.20  |
+| 2     | 48.49        | 90.96          | 8.43  |
+| 3     | 48.10        | 88.19          | 10.92 |
+| 4     | 46.99        | 84.50          | 14.00 |
+| 5     | 46.66        | 82.43          | 15.77 |
+| 6     | 44.88        | 77.30          | 19.59 |
+
+- The finetuned system achieves a **+10.64 pBLEU** gain (≈ **2.2×** improvement) over the baseline.
+- The improvement is driven primarily by **reduced copying** (lower `BLEU_inp` → higher `100 - BLEU_inp`), which the metric explicitly rewards.
+- A small decrease in `BLEU_ref` is expected: discouraging copying can reduce n-gram overlap with references slightly, but the combined objective (pBLEU) improves substantially.
+- **Early stopping** selects the best trade-off epoch; the per-epoch table shows `pBLEU` increasing as copying decreases.
+- Optimization upgrades (warmup/decay, clipping, AMP) improve **stability and efficiency**, enabling better convergence; decoding constraints then **shape** outputs away from verbatim reuse.
+- Overall, results **match expectations** and reveal a clear trend: enforcing diversity during decoding and stability during training yields better paraphrases under the assignment’s metric.
+
 ### BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
@@ -198,12 +237,12 @@ Summarize all the results of your experiments in tables:
 |Improvement 2        |52.11%|...|
 |...        |...|...|
 
-| **Paraphrase Type Generation (PTG)** | **Metric 1** |**Metric n** |
-|----------------|-----------|------- |
-|Baseline |45.23%           |...            | 
-|Improvement 1          |58.56%            |...          
-|Improvement 2        |52.11%|...|
-|...        |...|...|
+| **Paraphrase Type Generation (PTG)** | **BLEU Score** | **Negative BLEU (with input)** | **Penalized BLEU** |
+|---|---:|---:|---:|
+| Baseline        | 48.420 | 9.610 | 8.950 |
+| Improvement 1   | 44.880 | 22.700 | 19.590 |
+| Improvement 2   | …      | …     | …     |
+
 
 Discuss your results, observations, correlations, etc.
 
@@ -223,7 +262,7 @@ All experiments showed the best performance very fast within 2-3 epochs, with de
 ## BERT Paraphrase Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 ## BART generation
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+.....
 ## BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
