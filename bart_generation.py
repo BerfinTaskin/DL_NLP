@@ -240,7 +240,7 @@ def finetune_paraphrase_generation(args):
     test_ids = test_dataset["id"]
     test_results = test_model(test_data, test_ids, device, model, tokenizer)
     test_results.to_csv(
-        "predictions/bart/etpc-paraphrase-generation-test-output3.csv", index=False
+        "predictions/bart/etpc-paraphrase-generation-test-output.csv", index=False
     )
 
 
