@@ -29,6 +29,7 @@ The baseline results can be obtained as described by using the standard `multita
 # Best improvements
 ### BERT sentiment analysis
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
 ### BERT semantic textual similarity:
 Running the training script for the best improvement for the STS task can be done as follows:
 ```
@@ -46,10 +47,14 @@ python improvements_sts.py \
     --lr_head 1e-4 \
     --batch_size 128 \
 ```
+
 ### BERT Paraphrase Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
-### BART generation
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+### BART Generation
+Running the training script for the best improvement for the BART Generation task can be done as follows:
+python3 bart_generation.py --use_gpu
+
 ### BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
@@ -106,17 +111,16 @@ We improved the **BART paraphrase generation** baseline along four axes: data ha
 - These constraints are known to reduce degeneracies such as verbatim copying and short, repetitive outputs—critical for paraphrase tasks where surface diversity is desirable.
 
 **Evaluation metric (correctness and copy penalty)**
-- The baseline computed SacreBLEU with reversed arguments, which can bias model selection. The finetuned system fixes the orientation and reports:
-  \[
-  \text{BLEU}_{\text{ref}} = \mathrm{BLEU}(\hat{Y}, Y), \quad 
-  \text{BLEU}_{\text{inp}} = \mathrm{BLEU}(\hat{Y}, X),
-  \]
-  where \( X \) is the source sentence, \( Y \) the reference paraphrase, and \( \hat{Y} \) the model output.
-- To explicitly discourage copying, we report a **penalized BLEU**:
-  \[
-  \text{pBLEU} = \text{BLEU}_{\text{ref}} \times \frac{100 - \text{BLEU}_{\text{inp}}}{52},
-  \]
-  where \( 100 - \text{BLEU}_{\text{inp}} \) acts as a “diversity” factor and the constant 52 rescales to a 0–100 range (as defined in the assignment). This metric rewards outputs that are both faithful to references and **lexically distinct** from the inputs.
+The baseline originally computed SacreBLEU with reversed arguments. We fix the orientation and report:
+
+- `BLEU_ref = BLEU(predictions, references)`
+- `BLEU_inp = BLEU(predictions, inputs)`
+
+To explicitly discourage copying from the input, we use the penalized BLEU:
+
+- `pBLEU = BLEU_ref * (100 - BLEU_inp) / 52`
+
+Here, `100 - BLEU_inp` acts as a “diversity” factor and the constant 52 rescales to a 0–100 range (as defined in the assignment). This metric rewards outputs that are both faithful to references and **lexically distinct** from the inputs.
 
 **Empirical Outcome**
 
@@ -147,8 +151,36 @@ Based on this configuration, we tested the influence of each of the five propose
 
 ### BERT Paraphrase Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
-### BART generation
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+### BART Generation
+We compare a **baseline BART-large** paraphrase generator against an **improved finetuned variant** on the ETPC dataset (train/dev/test).
+
+**Evaluation**
+- `BLEU_ref = BLEU(predictions, references)`
+- `BLEU_inp = BLEU(predictions, inputs)` (measures similarity to the source; lower means less copying)
+- **Penalized BLEU (assignment metric):**
+
+- We expected:
+- A more stable optimization recipe (AdamW + warmup/decay, gradient clipping/accumulation, AMP) and **early stopping** should improve generalization.
+- **Decoding constraints** (n-gram blocking, length penalty) should **reduce copying**, increasing `100 - BLEU_inp`, and thus improve `pBLEU`, even if `BLEU_ref` drops slightly.
+
+**Per-epoch trend (finetuned):**
+
+| Epoch | BLEU vs refs | BLEU vs inputs | pBLEU |
+|------:|--------------|----------------|------:|
+| 1     | 48.84        | 95.53          | 4.20  |
+| 2     | 48.49        | 90.96          | 8.43  |
+| 3     | 48.10        | 88.19          | 10.92 |
+| 4     | 46.99        | 84.50          | 14.00 |
+| 5     | 46.66        | 82.43          | 15.77 |
+| 6     | 44.88        | 77.30          | 19.59 |
+
+- The finetuned system achieves a **+10.64 pBLEU** gain (≈ **2.2×** improvement) over the baseline.
+- The improvement is driven primarily by **reduced copying** (lower `BLEU_inp` → higher `100 - BLEU_inp`), which the metric explicitly rewards.
+- A small decrease in `BLEU_ref` is expected: discouraging copying can reduce n-gram overlap with references slightly, but the combined objective (pBLEU) improves substantially.
+- **Early stopping** selects the best trade-off epoch; the per-epoch table shows `pBLEU` increasing as copying decreases.
+- Optimization upgrades (warmup/decay, clipping, AMP) improve **stability and efficiency**, enabling better convergence; decoding constraints then **shape** outputs away from verbatim reuse.
+- Overall, results **match expectations** and reveal a clear trend: enforcing diversity during decoding and stability during training yields better paraphrases under the assignment’s metric.
+
 ### BART Detection
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
