@@ -127,7 +127,21 @@ Default weights used:
 
 This approach maintains rule-compliance by not using extra transformer embeddings while explicitly balancing the trade-off between adequacy and diversity in the generated text.
 ### BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+### Hyperparameter Search (Baseline)
+
+To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
+[2e−3,2e−4,2e−5]
+[2e−3,2e−4,2e−5] and batch size 
+[2,16,32]
+[2,16,32]. The results of this sweep are summarized in the table below.
+
+
+| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
+|--------------------------------|-----|-----|-----|
+| **2e-3**                       |  –  |  –  |  –  |
+| **2e-4**                       |  –  |  –  |  –  |
+| **2e-5**                       |  –  |  –  |  –  |
+
 
 # Experiments
 ### BERT sentiment analysis

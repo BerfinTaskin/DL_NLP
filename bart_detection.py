@@ -7,7 +7,6 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, BartModel
-from sklearn.metrics import matthews_corrcoef
 from optimizer import AdamW
 import json
 import os # Ensure os is imported for makedirs
@@ -348,13 +347,8 @@ def evaluate_model(model, dev_data, device, criterion=None):
             label_accuracy, matth_coef = 0.0, 0.0
         else:
             label_accuracy = correct_predictions / total_samples
-            try:
-                matth_coef = matthews_corrcoef(
-                    true_labels_np[:, label_idx],
-                    predicted_labels_np[:, label_idx]
-                )
-            except ValueError:
-                matth_coef = 0.0
+            
+            matth_coef = 0.0
         accuracies.append(label_accuracy)
         matthews_coefficients.append(matth_coef)
 
