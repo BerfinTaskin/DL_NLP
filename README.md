@@ -83,38 +83,45 @@ We aimed to improve upon the baseline using several small measures that are prov
 BERT Paraphrase Detection
 
 ### BERT Paraphrase Detection
+
+LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
 ### BART generation
 
-We implemented a Sample-and-Rerank (Rerank@k) generation strategy that focuses on balancing meaning and diversity in text generation. Here's our approach:
+We improved the **BART paraphrase generation** baseline along four axes: data handling, optimization, decoding, and evaluation.
 
-1. **Sample k candidates per input** using stochastic decoding with the following parameters:
-   - top-p = 0.9
-   - temperature = 0.9
-   - no_repeat_ngram_size = 3
-   - max_length = 50
+**Data handling**
+- The finetuned system reuses a single tokenizer across the pipeline and **pre-tokenizes targets** once in the dataloader, avoiding per-batch retokenization.
+- The dataloader is configured with CUDA-friendly options (e.g., `pin_memory`, worker processes), which reduces host–device transfer overhead.
+- The code also supports **optional control tokens** (e.g., `<SEP>`, `<TYPE_k>`) that can encode paraphrase constraints (span or type) directly in the input sequence, enabling conditional generation when such metadata is available.
 
-2. **Score each candidate** using a non-transformer reward that balances meaning vs. diversity through:
-   - Semantic similarity: Using TF-IDF word cosine and TF-IDF character (3-5) cosine, averaged
-   - WordNet soft overlap (optional): Giving credit for synonym matches (no context models)
-   - Copy penalties:
-     - n-gram overlap (1-4) between candidate and source (PINC-style)
-     - Self-BLEU(candidate, source) as an additional copying proxy
-     - Length penalty: |len(y)-len(x)| / len(x)
+**Optimization and training stability**
+- The training loop replaces plain SGD-like updates with **AdamW** (decoupled weight decay), couples it with a **linear warmup + linear decay** learning-rate schedule, and adds **gradient clipping**.
+- To increase the effective batch size under limited GPU memory, the loop employs **gradient accumulation**, where the effective batch is \( B_{\text{eff}} = B \times \text{accum} \).
+- Training uses **mixed-precision (AMP)** with dynamic loss scaling, which both accelerates throughput and reduces numerical instabilities on GPU.
+- Finally, the model is validated after each epoch on a held-out development set, with **early stopping** and **best-checkpoint selection**; this prevents overfitting and ensures that downstream evaluation uses the strongest model rather than the last epoch.
 
-3. **Pick the best candidate** by the combined score using the following formula:
-   R(x,y) = α·TFIDF_avg(x,y) + ε·WordNet(x,y) - β·Overlap(x,y) - γ·SelfBLEU(x,y) - δ·LenPenalty(x,y)
+**Decoding strategy**
+- Inference uses beam search with **n-gram blocking** (`no_repeat_ngram_size`) and a tunable **length penalty**.
+- These constraints are known to reduce degeneracies such as verbatim copying and short, repetitive outputs—critical for paraphrase tasks where surface diversity is desirable.
 
-Default weights used:
-- α = 1.0 
-- β = 0.30
-- γ = 0.20
-- δ = 0.10
-- ε = 0.20
-- k = 10 (also tested with k∈{5,10,20})
+**Evaluation metric (correctness and copy penalty)**
+- The baseline computed SacreBLEU with reversed arguments, which can bias model selection. The finetuned system fixes the orientation and reports:
+  \[
+  \text{BLEU}_{\text{ref}} = \mathrm{BLEU}(\hat{Y}, Y), \quad 
+  \text{BLEU}_{\text{inp}} = \mathrm{BLEU}(\hat{Y}, X),
+  \]
+  where \( X \) is the source sentence, \( Y \) the reference paraphrase, and \( \hat{Y} \) the model output.
+- To explicitly discourage copying, we report a **penalized BLEU**:
+  \[
+  \text{pBLEU} = \text{BLEU}_{\text{ref}} \times \frac{100 - \text{BLEU}_{\text{inp}}}{52},
+  \]
+  where \( 100 - \text{BLEU}_{\text{inp}} \) acts as a “diversity” factor and the constant 52 rescales to a 0–100 range (as defined in the assignment). This metric rewards outputs that are both faithful to references and **lexically distinct** from the inputs.
 
-This approach maintains rule-compliance by not using extra transformer embeddings while explicitly balancing the trade-off between adequacy and diversity in the generated text.
-### BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+**Empirical Outcome**
+
+Under identical data and evaluation conditions, the finetuned system improves **penalized BLEU** from **8.95** (baseline) to **19.59**. The gain is driven primarily by reduced input copying (lower \( \text{BLEU}_{\text{inp}} \)), with a modest trade-off in raw BLEU vs. references—consistent with the objective of producing paraphrases rather than near-copies.
+
 
 # Experiments
 ### BERT sentiment analysis
