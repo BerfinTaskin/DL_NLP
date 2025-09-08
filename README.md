@@ -32,7 +32,7 @@ The baseline results can be obtained as described by using the standard `multita
 python sst_P02_final.py \
   --epochs 6 \
   --batch_size 32 \
-
+```
 ### BERT semantic textual similarity:
 Running the training script for the best improvement for the STS task can be done as follows:
 ```
