@@ -1,14 +1,19 @@
 #!/bin/bash
-#SBATCH -p jupyter          # partition to submit job to
-#SBATCH -G V100:1           # specify which gpu to request and how many e.g. V100:2
-#SBATCH -t 24:00:00         # time limit in hours:minutes:seconds
-#SBATCH --output=/dev/null  # you can delete this line. Then it will automatically log stdout to current_work_dir/output/<jobid>.out
-#SBATCH --error=/dev/null   # you can delete this line. Then it will automatically log stderr to current_work_dir/output/<jobid>.out
+#SBATCH -p grete:interactive
+#SBATCH -G 1g.20gb # 1g.20gb, 2g.10gb
+#SBATCH -t 0-12:00:00
+#SBATCH -A nib00034
+#SBATCH -C inet
+#SBATCH -o /user/henrich1/u12041/output/job-%J.out
 
 # optionally put "#SBATCH -C inet as slurm option" and comment out the below lines for internet access on compute node (e.g. for downloading/uploading stuff)
 export HTTPS_PROXY="http://www-cache.gwdg.de:3128"
 export HTTP_PROXY="http://www-cache.gwdg.de:3128"
 
+echo "Activating conda..."
+source /user/henrich1/u12041/scratch/scratch_rzg/conda/etc/profile.d/conda.sh
+conda activate dnlp
+cd /user/henrich1/u12041/repos/nlp_stuff/DL_NLP # started at 12:45
 
 ############################### === Configuration ===
 LOG_NAME="baseline_search1"   # <-- change this to your desired name
@@ -16,7 +21,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -37,7 +42,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -58,7 +63,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -79,7 +84,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -100,7 +105,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -121,7 +126,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -142,7 +147,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -163,7 +168,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -184,7 +189,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -205,7 +210,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -226,7 +231,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -247,7 +252,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -268,7 +273,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -289,7 +294,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -310,7 +315,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -331,7 +336,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -352,7 +357,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
@@ -373,7 +378,7 @@ LOG_DIR="improvements_sts/logs"
 mkdir -p "$LOG_DIR"
 
 python improvements_sts.py \
-    --epochs 12 \
+    --epochs 8 \
     --option finetune \
     --use_gpu \
     --seed 50 \
