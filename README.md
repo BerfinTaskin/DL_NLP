@@ -49,7 +49,18 @@ python improvements_sts.py \
 ```
 
 ### BERT Paraphrase Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+Best performance for the Quora Question Pairs Paraphrase Detection can be achieved with the following command:
+
+```
+python -m improvements_qqp.train_simcse \
+    --use_gpu \
+    --epochs 3 \
+    --batch_size 128 \
+    --lr 3e-5 \
+    --temperature=0.1 \
+    --pooling mean \
+    --symmetric
+```
 
 ### BART Generation
 Running the training script for the best improvement for the BART Generation task can be done as follows:
@@ -91,7 +102,15 @@ BERT Paraphrase Detection
 
 ### BERT Paraphrase Detection
 
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+- For QQP, our **baseline** (Part 01) used MultitaskBERT: minBERT with pretrained weights, [CLS] embeddings from both questions concatenated, and a dropout + linear classifier trained with AdamW. A sigmoid ≥ 0.5 marked paraphrases, yielding **~76.8% accuracy**.
+- For Part 02, we focused on **improving sentence embeddings** for QQP paraphrase detection. Instead of training a linear classifier on concatenated CLS vectors (like Part 01), we trained the encoder itself to produce better embeddings.
+	- Replaced Binary Classification Loss with Contrastive Loss (InfoNCE): Explicitly pulls paraphrase pairs together and pushes other examples apart in the embedding space (Better for Semantic Tasks like QQP)
+	- **Pooling strategy:** We added a configurable pooling layer and found **mean pooling** over all token embeddings (mask-aware) to work similar to [CLS] and better than pooler outputs for our task.
+	- **Cosine similarity + threshold:** At evaluation, we compute **cosine similarity** between embeddings of the two questions. Instead of a fixed 0.5 cutoff, we select the optimal decision threshold on the dev set, then apply it to test.
+- Implementation details:
+    - Improvements are in a dedicated folder `/improvements_qqp/`.
+    - We introduced a lightweight `SentenceEncoder` wrapper that reuses our minBERT while adding pooling and embedding changes.
+    - The main training script is `train_simcse.py`, which trains the encoder with SimCSE loss, tunes the threshold on dev, and writes predictions to disk.
 
 ### BART Generation
 
@@ -152,7 +171,27 @@ Based on this configuration, we tested the influence of each of the five propose
 |   5    |   16     |      48      |      0.10      |
 
 ### BERT Paraphrase Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+To find the best training options (and to do an ablation study), we write an `ablate_simcse.py`.
+
+Hyperparameters tested:
+- Pooling = {mean, cls}
+- Temperature τ ∈ {0.05, 0.1}
+- Learning rate ∈ {1e-5, 3e-5}
+- Epochs = 1, batch size = 64
+
+| Pooling | Temp | LR    | Dev Acc (%) | Thr |
+|:-------:|:----:|:-----:|:-----------:|:---:|
+| cls    | 0.1  | 3e-05 |      79.928 | 0.885 |
+| mean   | 0.1  | 3e-05 |      79.729 | 0.880 |
+| cls    | 0.1  | 1e-05 |      78.806 | 0.870 |
+| mean   | 0.1  | 1e-05 |      78.335 | 0.855 |
+| cls    | 0.05 | 3e-05 |      78.309 | 0.820 |
+| cls    | 0.05 | 1e-05 |      77.199 | 0.815 |
+| mean   | 0.05 | 3e-05 |      77.051 | 0.810 |
+| mean   | 0.05 | 1e-05 |      76.100 | 0.790 |
+
+Based on the table above, the optimal hyperparameters were chosen.
+
 ### BART Generation
 We compare a **baseline BART-large** paraphrase generator against an **improved finetuned variant** on the ETPC dataset (train/dev/test).
 
@@ -215,12 +254,10 @@ Summarize all the results of your experiments in tables:
 |Improvement 2        |52.11%|...|
 |...        |...|...|
 
-| **Quora Question Pairs (QQP)** | **Metric 1** |**Metric n** |
-|----------------|-----------|------- |
-|Baseline |45.23%           |...            | 
-|Improvement 1          |58.56%            |...          
-|Improvement 2        |52.11%|...|
-|...        |...|...|
+| **Quora Question Pairs (QQP)** | **Accuracy** |
+|----------------|-----------|
+|Baseline |76.800%           |          
+|w/ Contrastive Learning          |81.047%       
 
 | **Semantic Textual Similarity (STS)** | **Correlation** | **Interpretation** |
 |---------------------------------------|-----------------|--------------------------------|
@@ -262,7 +299,11 @@ LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 All experiments showed the best performance very fast within 2-3 epochs, with degrading validation performance from there on. This is in line with the fact that the dataset is relatively small and overfits fast. The training plots were therefore in general not considered interesting. The plot that shows training and validation performance for the best baseline configuration over the 8 training epochs was plotted as an example:
 ![STS Train vs Dev Correlation](plots/sts_train_vs_dev_corr.png)
 ## BERT Paraphrase Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+Cosine similarity distributions on the QQP dev set with SimCSE. Paraphrase pairs cluster near 1.0, while non-paraphrase pairs spread lower, yielding a better decision margin than the baseline classifier which was fixed (sigmoid, 0.5)
+<img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/ea9da676-79f0-4253-aa71-f7696806da4d" />
+
+
 ## BART generation
 .....
 ## BART Detection
@@ -280,7 +321,7 @@ Explain what member did what in the project:
 
 **Berfin Taskin:** : Worked with bart generation task both for the first part of the project and the second part of the project(improvement), README file, group leading.
 
-**Ashutosh Jaiswal:** :
+**Ashutosh Jaiswal:** : Implemented the improvement for the QQP Task and contributed to baseline tasks.
 
 **Jonathan Henrich:** : Implemented the improvement for the STS baseline and contributed to all components of the BERT-related tasks of the baseline.
 
@@ -301,6 +342,8 @@ This is an automatic report generated with AI Usage Cards. https://ai-cards.org
 1) Paraphrase Generation with Deep Reinforcement Learning [Li, Jiang, Shang et al., 2018]
 
 2) Quality Controlled Paraphrase Generation, [Bandel et al., 2022]
+
+3) Gao, Tianyu, Xingcheng Yao, and Danqi Chen. "Simcse: Simple contrastive learning of sentence embeddings." arXiv preprint arXiv:2104.08821 (2021).
 
 
 <!-- Write down all your references (other repositories, papers, etc.) that you used for your project. -->
