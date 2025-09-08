@@ -441,7 +441,7 @@ def finetune_paraphrase_detection(args):
     print(f"Loaded {len(train_df)} training samples for DataLoader.")
 
     # Train
-    model,train_loss,val_loss = train_model(
+    model,train_loss_array,val_loss_array = train_model(
         model,
         train_dataloader,
         dev_dataloader,
@@ -478,8 +478,8 @@ def finetune_paraphrase_detection(args):
     "val_accuracy": val_accuracy,
     "val_f1": val_f1,
     "val_loss": val_loss,
-    'train_loss_array':train_loss,
-    'val_loss_array':val_loss
+    'train_loss_array':train_loss_array,
+    'val_loss_array':val_loss_array
     }
     os.makedirs("metrics_logs", exist_ok=True)
     outfile = f"metrics_logs/{args.approach}_{args.job_id}.json"
