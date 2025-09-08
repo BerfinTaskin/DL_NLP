@@ -29,9 +29,9 @@ run() {
 }
 
 # launch 3 trainings on GPUs 0,1,2 (adjust hyperparams per run)
-run 0 --batch_size 16 --learning_rate 2e-3 --approach baseline_batch16_3
-run 1 --batch_size 16 --learning_rate 2e-4 --approach baseline_batch16_4
-run 2 --batch_size 16 --learning_rate 2e-5 --approach baseline_batch16_5
+run 0 --batch_size 128 --learning_rate 2e-3 --approach baseline_batch128_3
+#run 1 --batch_size 128 --learning_rate 2e-4 --approach baseline_batch128_4
+#run 2 --batch_size 128 --learning_rate 2e-5 --approach baseline_batch128_5
 
 # add more, still one per GPU:
 # run 0/1/2 again ONLY after the first set finishes, or switch to 6 GPUs.

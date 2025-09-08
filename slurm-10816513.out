@@ -1,0 +1,150 @@
+================================================================================
+JobID = 10816513
+User = u17468, Account = nhr_ni_dnlpss25_g02
+Partition = standard96, Nodelist = gcn2390
+================================================================================
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+Retrieving notices: - \ done
+[2025-09-08T22:08:52.499] error: *** JOB 10816513 ON gcn2390 CANCELLED AT 2025-09-08T22:08:52 DUE to SIGNAL Terminated ***
+Channels:
+ - defaults
+Platform: linux-64
+Collecting package metadata (repodata.json): / - \ | / - \ | / - \ | / - \ | / - \ | / - \ | / done
+Solving environment: \ done
+
+
+==> WARNING: A newer version of conda exists. <==
+    current version: 25.3.1
+    latest version: 25.7.0
+
+Please update conda by running
+
+    $ conda update -n base -c defaults conda
+
+
+
+## Package Plan ##
+
+  environment location: /user/shrinath.madde/u17468/miniconda/envs/dnlp
+
+  added / updated specs:
+    - python=3.10
+
+
+The following packages will be downloaded:
+
+    package                    |            build
+    ---------------------------|-----------------
+    ncurses-6.5                |       h7934f7d_0         1.1 MB
+    pip-25.2                   |     pyhc872135_0         1.2 MB
+    readline-8.3               |       hc2a1206_0         471 KB
+    sqlite-3.50.2              |       hb25bd0a_1         1.1 MB
+    tk-8.6.15                  |       h54e0aa7_0         3.4 MB
+    ------------------------------------------------------------
+                                           Total:         7.3 MB
+
+The following NEW packages will be INSTALLED:
+
+  _libgcc_mutex      pkgs/main/linux-64::_libgcc_mutex-0.1-main 
+  _openmp_mutex      pkgs/main/linux-64::_openmp_mutex-5.1-1_gnu 
+  bzip2              pkgs/main/linux-64::bzip2-1.0.8-h5eee18b_6 
+  ca-certificates    pkgs/main/linux-64::ca-certificates-2025.7.15-h06a4308_0 
+  expat              pkgs/main/linux-64::expat-2.7.1-h6a678d5_0 
+  ld_impl_linux-64   pkgs/main/linux-64::ld_impl_linux-64-2.40-h12ee557_0 
+  libffi             pkgs/main/linux-64::libffi-3.4.4-h6a678d5_1 
+  libgcc-ng          pkgs/main/linux-64::libgcc-ng-11.2.0-h1234567_1 
+  libgomp            pkgs/main/linux-64::libgomp-11.2.0-h1234567_1 
+  libstdcxx-ng       pkgs/main/linux-64::libstdcxx-ng-11.2.0-h1234567_1 
+  libuuid            pkgs/main/linux-64::libuuid-1.41.5-h5eee18b_0 
+  libxcb             pkgs/main/linux-64::libxcb-1.17.0-h9b100fa_0 
+  ncurses            pkgs/main/linux-64::ncurses-6.5-h7934f7d_0 
+  openssl            pkgs/main/linux-64::openssl-3.0.17-h5eee18b_0 
+  pip                pkgs/main/noarch::pip-25.2-pyhc872135_0 
+  pthread-stubs      pkgs/main/linux-64::pthread-stubs-0.3-h0ce48e5_1 
+  python             pkgs/main/linux-64::python-3.10.18-h1a3bd86_0 
+  readline           pkgs/main/linux-64::readline-8.3-hc2a1206_0 
+  setuptools         pkgs/main/linux-64::setuptools-78.1.1-py310h06a4308_0 
+  sqlite             pkgs/main/linux-64::sqlite-3.50.2-hb25bd0a_1 
+  tk                 pkgs/main/linux-64::tk-8.6.15-h54e0aa7_0 
+  tzdata             pkgs/main/noarch::tzdata-2025b-h04d1e81_0 
+  wheel              pkgs/main/linux-64::wheel-0.45.1-py310h06a4308_0 
+  xorg-libx11        pkgs/main/linux-64::xorg-libx11-1.8.12-h9b100fa_1 
+  xorg-libxau        pkgs/main/linux-64::xorg-libxau-1.0.12-h9b100fa_0 
+  xorg-libxdmcp      pkgs/main/linux-64::xorg-libxdmcp-1.1.5-h9b100fa_0 
+  xorg-xorgproto     pkgs/main/linux-64::xorg-xorgproto-2024.1-h5eee18b_1 
+  xz                 pkgs/main/linux-64::xz-5.6.4-h5eee18b_1 
+  zlib               pkgs/main/linux-64::zlib-1.2.13-h5eee18b_1 
+
+
+
+Downloading and Extracting Packages: ...working...tk-8.6.15            | 3.4 MB    |            |   0% 
+pip-25.2             | 1.2 MB    |            |   0% [A
+
+sqlite-3.50.2        | 1.1 MB    |            |   0% [A[A
+
+
+ncurses-6.5          | 1.1 MB    |            |   0% [A[A[A
+
+
+
+readline-8.3         | 471 KB    |            |   0% [A[A[A[A
+pip-25.2             | 1.2 MB    | 1          |   1% [Atk-8.6.15            | 3.4 MB    |            |   0% 
+
+sqlite-3.50.2        | 1.1 MB    | 1          |   1% [A[A
+
+
+
+readline-8.3         | 471 KB    | 3          |   3% [A[A[A[A
+
+
+ncurses-6.5          | 1.1 MB    | 1          |   1% [A[A[A
+pip-25.2             | 1.2 MB    | ########## | 100% [A
+
+
+
+readline-8.3         | 471 KB    | ########## | 100% [A[A[A[A
+
+
+ncurses-6.5          | 1.1 MB    | ########## | 100% [A[A[A
+
+
+ncurses-6.5          | 1.1 MB    | ########## | 100% [A[A[A
+
+sqlite-3.50.2        | 1.1 MB    | ########## | 100% [A[A
+
+sqlite-3.50.2        | 1.1 MB    | ########## | 100% [A[Atk-8.6.15            | 3.4 MB    | ########## | 100% tk-8.6.15            | 3.4 MB    | ########## | 100% 
+
+
+
+readline-8.3         | 471 KB    | ########## | 100% [A[A[A[A
+
+
+
+readline-8.3         | 471 KB    | ########## | 100% [A[A[A[A
+
+sqlite-3.50.2        | 1.1 MB    | ########## | 100% [A[A
+pip-25.2             | 1.2 MB    | ########## | 100% [A
+pip-25.2             | 1.2 MB    | ########## | 100% [Atk-8.6.15            | 3.4 MB    | ########## | 100% 
+
+
+ncurses-6.5          | 1.1 MB    | ########## | 100% [A[A[A                                                     
+                                                     [A
+
+                                                     [A[A
+
+
+                                                     [A[A[A
+
+
+
+                                                     [A[A[A[A done
+Preparing transaction: / - \ | / - \ done
+Verifying transaction: / - \ | / - \ | / - \ | / - \ | / ============ Job Information ===================================================
+Submitted: 2025-09-08T22:01:48
+Started: 2025-09-08T22:02:06
+Ended: 2025-09-08T22:09:22
+Elapsed: 7 min, Limit: 720 min, Difference: 713 min
+CPUs: 192, Nodes: 1
+Estimated Consumption: 11.20 core-hours
+================================================================================

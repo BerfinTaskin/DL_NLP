@@ -17,3 +17,4 @@ fi
 # Install additional packages
 conda install tqdm==4.66.2 requests==2.31.0 transformers==4.38.2 tensorboard==2.16.2 tokenizers==0.15.1 -c conda-forge -c huggingface -y
 pip install explainaboard-client==0.1.4 sacrebleu==2.4.0 numpy==1.26.4
+

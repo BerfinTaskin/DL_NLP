@@ -51,7 +51,7 @@ LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 ### BART generation
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 ### BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+Running the training script for the best improvement for the paraphrase detection task can be done as follows:
 
 # Methodology
 ### BERT sentiment analysis
@@ -83,6 +83,19 @@ We aimed to improve upon the baseline using several small measures that are prov
 BERT Paraphrase Detection
 
 ### BERT Paraphrase Detection
+
+We try to implement the baseline performace using following techniques
+
+1. **Make the head return logits** In the baseline model, the classifier head returned probabilities after applying a sigmoid activation. Instead, we modified the head to return raw logits directly. This allows the use of more stable loss functions (such as BCEWithLogitsLoss), avoids premature squashing of values, and lets the loss handle the sigmoid internally for improved numerical stability.
+
+2. **Mean Pool over token embeddings**
+Rather than using the hidden state of the first token (similar to a [CLS] representation), we employed mean pooling across all token embeddings in the sentence pair. This representation takes into account the entire sentence context, especially beneficial for BART which does not have a dedicated [CLS] token. Mean pooling produced more informative sentence-level features for paraphrase classification.
+
+4. **K-Bin Ensemble**
+To reduce variance and improve robustness, we trained an ensemble of models on different random partitions (“bins”) of the training data. Each model was trained independently on one bin, and predictions were aggregated by averaging probabilities across models. This K-bin ensembling helps stabilize performance, reduces sensitivity to random initialization, and improves generalization on the dev and test sets.
+
+We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
+
 ### BART generation
 
 We implemented a Sample-and-Rerank (Rerank@k) generation strategy that focuses on balancing meaning and diversity in text generation. Here's our approach:

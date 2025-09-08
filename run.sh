@@ -20,7 +20,7 @@ mkdir -p ./slurm_files
 
 # Activate conda environment
 source activate dnlp
-
+pip install --no-input sentencepiece==0.1.99 sacremoses
 echo "Running ETPC Data Augmentation"
 echo "Working directory: $PWD"
 echo "Node: ${SLURM_NODELIST}"
@@ -33,7 +33,7 @@ python -m torch.utils.collect_env 2> /dev/null
 cd /user/shrinath.madde/u17468/DL_NLP
 
 # Run augmentation script
-python -u data_augmentation.py \
+python -u data_agu.py \
     --input ./data/etpc-paraphrase-train.csv \
     --output ./data/etpc-paraphrase-train.augmented.csv \
     --bt_lang de \
