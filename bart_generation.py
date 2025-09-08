@@ -1,3 +1,8 @@
+"""
+Baseline BART Generation model.
+"""
+
+
 import argparse
 import random
 
@@ -8,7 +13,8 @@ from sacrebleu.metrics import BLEU
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, BartForConditionalGeneration
-
+import sys
+sys.path.append('/home/berfintskn/DL_NLP')
 from optimizer import AdamW
 
 
@@ -139,55 +145,52 @@ def test_model(test_data, test_ids, device, model, tokenizer):
 
 def evaluate_model(model, test_data, device, tokenizer):
     """
-    You can use your train/validation set to evaluate models performance with the BLEU score.
-    test_data is a Pandas Dataframe, the column "sentence1" contains all input sentence and 
-    the column "sentence2" contains all target sentences
+    Evaluate on dev/test with SacreBLEU.
+    Correct orientation:
+      - bleu_ref = BLEU(preds, refs)
+      - bleu_inp = BLEU(preds, inputs)  # we penalize similarity to inputs
+    Penalized BLEU = bleu_ref * (100 - bleu_inp) / 52
     """
     model.eval()
     bleu = BLEU()
     predictions = []
 
     dataloader = transform_data(test_data, shuffle=False)
+
     with torch.no_grad():
-        for batch in dataloader: 
+        for batch in dataloader:
             input_ids, attention_mask, _ = batch
             input_ids = input_ids.to(device)
             attention_mask = attention_mask.to(device)
-
-            # Generate paraphrases
             outputs = model.generate(
                 input_ids,
                 attention_mask=attention_mask,
                 max_length=50,
                 num_beams=5,
+                no_repeat_ngram_size=3,
                 early_stopping=True,
             )
-            
-            pred_text = [
-                tokenizer.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-                for g in outputs
-            ]
-            
-            predictions.extend(pred_text)
+            predictions.extend(
+                tokenizer.batch_decode(outputs, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+            )
 
     inputs = test_data["sentence1"].tolist()
     references = test_data["sentence2"].tolist()
 
+    bleu_ref = bleu.corpus_score(predictions, [references]).score
+    bleu_inp = bleu.corpus_score(predictions, [inputs]).score
+    neg_bleu_inp = 100.0 - bleu_inp
+    penalized = bleu_ref * neg_bleu_inp / 52.0
+
+    # >>> Requested print style <<<
+    print("- BART Generation")
+    print(f"  - BLEU Score: {bleu_ref:.2f}")
+    print(f"  - Negative BLEU Score with input: {neg_bleu_inp:.2f}")
+    print(f"  - Penalized BLEU Score: {penalized:.2f}")
+
     model.train()
-    # Calculate BLEU score
-    bleu_score_reference = bleu.corpus_score(references, [predictions]).score
-    # Penalize BLEU score if its to close to the input
-    bleu_score_inputs = 100 - bleu.corpus_score(inputs, [predictions]).score
+    return penalized
 
-    print(f"BLEU Score: {bleu_score_reference}", f"Negative BLEU Score with input: {bleu_score_inputs}")
-    
-
-    # Penalize BLEU and rescale it to 0-100
-    # If you perfectly predict all the targets, you should get an penalized BLEU score of around 52
-    penalized_bleu = bleu_score_reference * bleu_score_inputs / 52
-    print(f"Penalized BLEU Score: {penalized_bleu}")
-
-    return penalized_bleu
 
 
 def seed_everything(seed=11711):
@@ -237,7 +240,7 @@ def finetune_paraphrase_generation(args):
     test_ids = test_dataset["id"]
     test_results = test_model(test_data, test_ids, device, model, tokenizer)
     test_results.to_csv(
-        "predictions/bart/etpc-paraphrase-generation-test-output.csv", index=False
+        "predictions/bart/etpc-paraphrase-generation-test-output3.csv", index=False
     )
 
 
