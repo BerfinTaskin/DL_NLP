@@ -198,11 +198,10 @@ Summarize all the results of your experiments in tables:
 |Improvement 2        |52.11%|...|
 |...        |...|...|
 
-| **Paraphrase Type Generation (PTG)** | **Metric 1** |**Metric n** |
+| **Paraphrase Type Generation (PTG)** | **BLEU Score** |**Negative BLEU Score with input** | **Penalized BLEU Score** |
 |----------------|-----------|------- |
-|Baseline |45.23%           |...            | 
-|Improvement 1          |58.56%            |...          
-|Improvement 2        |52.11%|...|
+|Baseline |48.42%           |9.61            | 8.95
+|Improvement 1          |44.88%            |22.70    |19.59          
 |...        |...|...|
 
 Discuss your results, observations, correlations, etc.
