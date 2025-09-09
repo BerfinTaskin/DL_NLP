@@ -232,9 +232,9 @@ To reduce variance and improve robustness, we trained an ensemble of models on d
 	
 	| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
 	|--------------------------------|-----|-----|-----|
-	| **2e-3**                       |91.1% |  –  |  –  |
+	| **2e-5**                       |91.1% |  –  |  –  |
 	| **2e-4**                       |90.2% | 90.5%| 89.2%|
-	| **2e-5**                       |90.6% | 90.7%| 90.8%|
+	| **2e-3**                       |90.6% | 90.7%| 90.8%|
 	
 	We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class           imbalance, and improve generalization, with the best results achieved when methods were applied together.
 
