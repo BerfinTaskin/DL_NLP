@@ -232,9 +232,9 @@ To reduce variance and improve robustness, we trained an ensemble of models on d
 	
 	| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
 	|--------------------------------|-----|-----|-----|
-	| **2e-3**                       |0.91 |  –  |  –  |
-	| **2e-4**                       |0.90 | 0.90| 0.89|
-	| **2e-5**                       |0.90 | 0.90| 0.90|
+	| **2e-3**                       |91.1% |  –  |  –  |
+	| **2e-4**                       |90.2% | 90.5%| 89.2%|
+	| **2e-5**                       |90.6% | 90.7%| 90.8%|
 	
 	We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class           imbalance, and improve generalization, with the best results achieved when methods were applied together.
 
@@ -357,14 +357,14 @@ We compare a **baseline BART-large** paraphrase generator against an **improved 
 
 | Approach                                                       | Val Accuracy |
 |----------------------------------------------------------------|--------------|
-| Baseline Approach                                              | 0.911        |
-| Make head return logits + BCEWithLogitsLoss (+ pos_weight)     | 0.759        |
-| Logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping  | 0.862        |
-| Mean Pool + Dropout                                            | 0.912        |
-| Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight)          | 0.875        |
-| K-Bin Ensemble (2 bins)                                        | 0.893        |
-| On Augmented data - Mean Pool + Dropout                        | 0.901        |
-| MUltilayer classifier- Mean Pool + Dropout                     | 0.912        |
+| Baseline Approach                                              | 91.1%        |
+| Make head return logits + BCEWithLogitsLoss (+ pos_weight)     | 75.9%        |
+| Logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping  | 86.2%        |
+| Mean Pool + Dropout                                            | 91.2%        |
+| Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight)          | 87.5%        |
+| K-Bin Ensemble (2 bins)                                        | 89.3%        |
+| On Augmented data - Mean Pool + Dropout                        | 90.1%        |
+| MUltilayer classifier- Mean Pool + Dropout                     | 91.2%        |
 
 
 # Results:
