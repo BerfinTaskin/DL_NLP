@@ -212,31 +212,31 @@ To reduce variance and improve robustness, we trained an ensemble of models on d
 
 5. Data Augmentation Pipeline (ETPC)
 
-We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
-Steps implemented in our augmentation script:
-  -  Preserve original pairs
-  -  Back-translation (EN → DE → EN)
-  -  Randomly paraphrase sentence1, sentence2, or both through German.
-  -  Generates label-preserving paraphrases that increase lexical and syntactic variety.
-   -  Uses sentencepiece + HuggingFace MarianMT.
-   -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
-   - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
+	We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
+	Steps implemented in our augmentation script:
+	  -  Preserve original pairs
+	  -  Back-translation (EN → DE → EN)
+	  -  Randomly paraphrase sentence1, sentence2, or both through German.
+	  -  Generates label-preserving paraphrases that increase lexical and syntactic variety.
+	   -  Uses sentencepiece + HuggingFace MarianMT.
+	   -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
+	   - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
 6) Hyperparameter Search (Baseline)
 
-To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
-[2e−3,2e−4,2e−5]
-[2e−3,2e−4,2e−5] and batch size 
-[2,16,32]
-[2,16,32]. The results of this sweep are summarized in the table below.
-
-
-| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
-|--------------------------------|-----|-----|-----|
-| **2e-3**                       |0.91 |  –  |  –  |
-| **2e-4**                       |0.90 | 0.90| 0.89|
-| **2e-5**                       |0.90 | 0.90| 0.90|
-
-We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
+	To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
+	[2e−3,2e−4,2e−5]
+	[2e−3,2e−4,2e−5] and batch size 
+	[2,16,32]
+	[2,16,32]. The results of this sweep are summarized in the table below.
+	
+	
+	| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
+	|--------------------------------|-----|-----|-----|
+	| **2e-3**                       |0.91 |  –  |  –  |
+	| **2e-4**                       |0.90 | 0.90| 0.89|
+	| **2e-5**                       |0.90 | 0.90| 0.90|
+	
+	We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class           imbalance, and improve generalization, with the best results achieved when methods were applied together.
 
 
 # Experiments
