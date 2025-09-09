@@ -71,47 +71,22 @@ Running the training script for the best improvement for the BART Generation tas
 python3 finetune_bart_generation.py --use_gpu
 ```
 
+
 ### BART Detection
-We try to implement the baseline performace using following techniques
+Running the training script for the best improvement for the BART Generation task can be done as follows:
+```
+python -u bart_detection.py \
+    --use_gpu \
+    --num_epochs 30 \
+    --batch_size 2 \
+    --learning_rate 2e-5 \
+    --early_stopping_patience 4 \
+    --approach "mean-pool-dropout on Baseline Approach" \
+    --job_id "${SLURM_JOB_ID}"
 
-1. **Make the head return logits** In the baseline model, the classifier head returned probabilities after applying a sigmoid activation. Instead, we modified the head to return raw logits directly. This allows the use of more stable loss functions (such as BCEWithLogitsLoss), avoids premature squashing of values, and lets the loss handle the sigmoid internally for improved numerical stability.
-
-2. **Mean Pool over token embeddings**
-Rather than using the hidden state of the first token (similar to a [CLS] representation), we employed mean pooling across all token embeddings in the sentence pair. This representation takes into account the entire sentence context, especially beneficial for BART which does not have a dedicated [CLS] token. Mean pooling produced more informative sentence-level features for paraphrase classification.
-
-4. **K-Bin Ensemble**
-To reduce variance and improve robustness, we trained an ensemble of models on different random partitions (“bins”) of the training data. Each model was trained independently on one bin, and predictions were aggregated by averaging probabilities across models. This K-bin ensembling helps stabilize performance, reduces sensitivity to random initialization, and improves generalization on the dev and test sets.
-
-We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
-
-5. Data Augmentation Pipeline (ETPC)
-
-We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
-
-Steps implemented in our augmentation script:
-  -  Preserve original pairs
-  -  Back-translation (EN → DE → EN)
-  -  Randomly paraphrase sentence1, sentence2, or both through German.
-  -  Generates label-preserving paraphrases that increase lexical and syntactic variety.
-   -  Uses sentencepiece + HuggingFace MarianMT.
-   -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
-   - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
+```
 
 
-6) Hyperparameter Search (Baseline)
-
-To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
-[2e−3,2e−4,2e−5]
-[2e−3,2e−4,2e−5] and batch size 
-[2,16,32]
-[2,16,32]. The results of this sweep are summarized in the table below.
-
-
-| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
-|--------------------------------|-----|-----|-----|
-| **2e-3**                       |0.91 |  –  |  –  |
-| **2e-4**                       |0.90 | 0.90| 0.89|
-| **2e-5**                       |0.90 | 0.90| 0.90|
 
 # Methodology
 ### BERT sentiment analysis
@@ -223,6 +198,50 @@ Here, `100 - BLEU_inp` acts as a “diversity” factor and the constant 52 resc
 **Empirical Outcome**
 
 Under identical data and evaluation conditions, the finetuned system improves **penalized BLEU** from **8.95** (baseline) to **19.59**. The gain is driven primarily by reduced input copying (lower \( \text{BLEU}_{\text{inp}} \)), with a modest trade-off in raw BLEU vs. references—consistent with the objective of producing paraphrases rather than near-copies.
+
+### BART Detection
+We try to implement the baseline performace using following techniques
+
+1. **Make the head return logits** In the baseline model, the classifier head returned probabilities after applying a sigmoid activation. Instead, we modified the head to return raw logits directly. This allows the use of more stable loss functions (such as BCEWithLogitsLoss), avoids premature squashing of values, and lets the loss handle the sigmoid internally for improved numerical stability.
+
+2. **Mean Pool over token embeddings**
+Rather than using the hidden state of the first token (similar to a [CLS] representation), we employed mean pooling across all token embeddings in the sentence pair. This representation takes into account the entire sentence context, especially beneficial for BART which does not have a dedicated [CLS] token. Mean pooling produced more informative sentence-level features for paraphrase classification.
+
+4. **K-Bin Ensemble**
+To reduce variance and improve robustness, we trained an ensemble of models on different random partitions (“bins”) of the training data. Each model was trained independently on one bin, and predictions were aggregated by averaging probabilities across models. This K-bin ensembling helps stabilize performance, reduces sensitivity to random initialization, and improves generalization on the dev and test sets.
+
+We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
+
+5. Data Augmentation Pipeline (ETPC)
+
+We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
+
+Steps implemented in our augmentation script:
+  -  Preserve original pairs
+  -  Back-translation (EN → DE → EN)
+  -  Randomly paraphrase sentence1, sentence2, or both through German.
+  -  Generates label-preserving paraphrases that increase lexical and syntactic variety.
+   -  Uses sentencepiece + HuggingFace MarianMT.
+   -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
+   - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
+
+
+6) Hyperparameter Search (Baseline)
+
+To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
+[2e−3,2e−4,2e−5]
+[2e−3,2e−4,2e−5] and batch size 
+[2,16,32]
+[2,16,32]. The results of this sweep are summarized in the table below.
+
+
+| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
+|--------------------------------|-----|-----|-----|
+| **2e-3**                       |0.91 |  –  |  –  |
+| **2e-4**                       |0.90 | 0.90| 0.89|
+| **2e-5**                       |0.90 | 0.90| 0.90|
+
+
 
 
 # Experiments
