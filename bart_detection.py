@@ -20,7 +20,7 @@ class BartWithClassifier(nn.Module):
         self.bart = BartModel.from_pretrained("facebook/bart-large", local_files_only=False)
         self.classifier = nn.Linear(self.bart.config.hidden_size, num_labels)
         self.sigmoid = nn.Sigmoid()
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.3)
     def _mean_pool(self, last_hidden_state, attention_mask):
         mask = attention_mask.unsqueeze(-1).type_as(last_hidden_state)  # (B,T,1)
         summed = (last_hidden_state * mask).sum(dim=1)                  # (B,H)
