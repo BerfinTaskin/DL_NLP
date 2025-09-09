@@ -49,7 +49,7 @@ python -u bart_detection.py \
     --num_epochs 30 \
     --batch_size 2 \
     --learning_rate 2e-5 \
-    --early_stopping_patience 4 \
+    --early_stopping_patience 30 \
     --approach "Warmup + cosine/linear decay reduces early overfitting." \
     --job_id "${SLURM_JOB_ID}"
 
