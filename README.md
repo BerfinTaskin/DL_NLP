@@ -364,6 +364,7 @@ We compare a **baseline BART-large** paraphrase generator against an **improved 
 | Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight)          | 0.875        |
 | K-Bin Ensemble (2 bins)                                        | 0.893        |
 | On Augmented data - Mean Pool + Dropout                        | 0.901        |
+| MUltilayer classifier- Mean Pool + Dropout                     | 0.912        |
 
 
 # Results:
