@@ -171,9 +171,9 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
     """
     # 1. Set up the optimizer
     optimizer = AdamW(model.parameters(), lr=learning_rate)
-    num_training_steps = len(train_data) * num_epochs
-    num_warmup_steps = int(0.06 * num_training_steps)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
+    #num_training_steps = len(train_data) * num_epochs
+    #num_warmup_steps = int(0.06 * num_training_steps)
+    #scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
 
     # 2. Set up the loss function
     # BCELoss is suitable for multi-label binary classification problems
@@ -216,9 +216,9 @@ def train_model(model, train_data, dev_data, device, num_epochs=5, learning_rate
             total_train_loss += loss.item()
 
             loss.backward() # Perform a backward pass to calculate the gradients.
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+          
             optimizer.step() # Update parameters
-            scheduler.step()
+   
             model.zero_grad()
 
         # Calculate the average loss over all of the batches.
