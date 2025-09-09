@@ -403,26 +403,17 @@ def finetune_paraphrase_detection(args):
     model.to(device)
 
     print("Loading data...")
-    full_train_dataset_df = pd.read_csv("data/etpc-paraphrase-train.csv")
+
+    # --- Load datasets ---
+    train_df = pd.read_csv("data/etpc-paraphrase-train.augmented.etpc_schema.csv")
+    dev_df = pd.read_csv("data/etpc-paraphrase-dev.csv")
     test_dataset_df = pd.read_csv("data/etpc-paraphrase-detection-test-student.csv")
 
-    # --- Train/Validation Split ---
-    full_train_dataset_df = full_train_dataset_df.sample(frac=1, random_state=args.seed).reset_index(drop=True)
-    num_dev_samples = int(len(full_train_dataset_df) * args.dev_split_ratio)
+    print(f"Train samples: {len(train_df)}")
+    print(f"Dev samples: {len(dev_df)}")
+    print(f"Test samples: {len(test_dataset_df)}")
 
-    if num_dev_samples == 0 and len(full_train_dataset_df) > 0:
-        num_dev_samples = 1
-    if num_dev_samples > len(full_train_dataset_df) - 1:
-        num_dev_samples = len(full_train_dataset_df) - 1 if len(full_train_dataset_df) > 0 else 0
-
-    if num_dev_samples > 0:
-        dev_df = full_train_dataset_df.iloc[:num_dev_samples]
-        train_df = full_train_dataset_df.iloc[num_dev_samples:]
-    else:
-        dev_df = full_train_dataset_df.copy()
-        train_df = full_train_dataset_df.copy()
-
-    print(f"Training with {len(train_df)} samples, validating with {len(dev_df)} samples.")
+    print(f"Training with {len(test_dataset_df)} samples, validating with {len(dev_df)} samples.")
 
     # Transform data into DataLoaders
     print("Transforming training data...")

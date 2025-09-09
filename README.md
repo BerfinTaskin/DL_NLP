@@ -127,6 +127,7 @@ Default weights used:
 
 This approach maintains rule-compliance by not using extra transformer embeddings while explicitly balancing the trade-off between adequacy and diversity in the generated text.
 ### BART Detection
+
 ### Hyperparameter Search (Baseline)
 
 To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
@@ -138,9 +139,9 @@ To tune hyperparameters, we performed a grid search over 9 parameter combination
 
 | Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
 |--------------------------------|-----|-----|-----|
-| **2e-3**                       |  –  |  –  |  –  |
-| **2e-4**                       |  –  |  –  |  –  |
-| **2e-5**                       |  –  |  –  |  –  |
+| **2e-3**                       |0.91 |  –  |  –  |
+| **2e-4**                       |0.90 | 0.90| 0.89|
+| **2e-5**                       |0.90 | 0.90| 0.90|
 
 
 # Experiments
@@ -166,7 +167,31 @@ Based on this configuration, we tested the influence of each of the five propose
 |   5    |   16     |      48      |      0.10      |
 
 ### BERT Paraphrase Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+Experiment Summaries
+
+1) Baseline Approach: Used the standard BART classifier head with sigmoid activation and BCE loss. Served as the reference point for all improvements.
+
+2) Make the head return logits + BCEWithLogitsLoss (+ pos_weight): Modified the head to output raw logits and switched to BCEWithLogitsLoss with pos_weight to address class imbalance.
+
+3) Make the head return logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping: Same as above, but with gradient clipping to stabilize training and prevent exploding gradients.
+
+4) Mean Pool + Dropout: Replaced [CLS]-like token embedding with mean pooling over all tokens and added dropout for regularization.
+
+5) Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight): Combined mean pooling with logits-based head and class-weighted BCE loss.
+
+6) K-Bin Ensemble (2 bins): Split the training data into 2 bins, trained separate models, and ensembled predictions across bins to improve robustness.
+
+| Approach                                                       | Val Accuracy |
+|----------------------------------------------------------------|--------------|
+| Baseline Approach                                              | 0.911        |
+| Make head return logits + BCEWithLogitsLoss (+ pos_weight)     | 0.759        |
+| Logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping  | 0.862        |
+| Mean Pool + Dropout                                            | 0.912        |
+| Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight)          | 0.875        |
+| K-Bin Ensemble (2 bins)                                        | 0.893        |
+
+
+
 ### BART generation
 LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 ### BART Detection
