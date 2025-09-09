@@ -340,7 +340,6 @@ We compare a **baseline BART-large** paraphrase generator against an **improved 
 - Overall, results **match expectations** and reveal a clear trend: enforcing diversity during decoding and stability during training yields better paraphrases under the assignment’s metric.
 
 ### BART Detection
-Experiment Summaries
 
 1) Baseline Approach: Used the standard BART classifier head with sigmoid activation and BCE loss. Served as the reference point for all improvements.
 
@@ -366,27 +365,8 @@ Experiment Summaries
 | K-Bin Ensemble (2 bins)                                        | 0.893        |
 | On Augmented data - Mean Pool + Dropout                        | 0.901        |
 
-<!-- Keep track of your experiments here. What are the experiments? Which tasks and models are you considering?
 
-Write down all the main experiments and results you did, even if they didn't yield an improved performance. Bad results are also results. The main findings/trends should be discussed properly. Why a specific model was better/worse than the other?
-
-You are **required** to implement one baseline and improvement per task. Of course, you can include more experiments/improvements and discuss them. 
-
-You are free to include other metrics in your evaluation to have a more complete discussion.
-
-Be creative and ambitious.
-
-For each experiment answer briefly the questions:
-
-- What experiments are you executing? Don't forget to tell how you are evaluating things.
-- What were your expectations for this experiment?
-- What have you changed compared to the base model (or to previous experiments, if you run experiments on top of each other)?
-- What were the results?
-- Add relevant metrics and plots that describe the outcome of the experiment well. 
-- Discuss the results. Why did improvement _A_ perform better/worse compared to other improvements? Did the outcome match your expectations? Can you recognize any trends or patterns? -->
-
-# Results 
-Summarize all the results of your experiments in tables:
+# Results:
 
 | **Stanford Sentiment Treebank (SST)** | **Accuracy** |
 |----------------|-----------|
@@ -425,38 +405,21 @@ Summarize all the results of your experiments in tables:
 Discuss your results, observations, correlations, etc.
 
 Results should have three-digit precision.
- 
-<!-- ### Hyperparameter Optimization 
-<!-- Describe briefly how you found your optimal hyperparameter. If you focussed strongly on Hyperparameter Optimization, you can also include it in the Experiment section.  -->
-
-<!-- _Note: Random parameter optimization with no motivation/discussion is not interesting and will be graded accordingly_ --> -->
 
 # Visualizations 
 ## BERT semantic textual similarity (STS):
 All experiments showed the best performance very fast within 2-3 epochs, with degrading validation performance from there on. This is in line with the fact that the dataset is relatively small and overfits fast. The training plots were therefore in general not considered interesting. The plot that shows training and validation performance for the best baseline configuration over the 8 training epochs was plotted as an example:
 ![STS Train vs Dev Correlation](plots/sts_train_vs_dev_corr.png)
+
 ## BERT Paraphrase Detection
 
 Cosine similarity distributions on the QQP dev set with SimCSE. Paraphrase pairs cluster near 1.0, while non-paraphrase pairs spread lower, yielding a better decision margin than the baseline classifier which was fixed (sigmoid, 0.5)
 <img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/ea9da676-79f0-4253-aa71-f7696806da4d" />
 
-
-## BART generation
-.....
-## BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
-
-<!-- Add relevant graphs of your experiments here. Those graphs should show relevant metrics (accuracy, validation loss, etc.) during the training. Compare the  different training processes of your improvements in those graphs. 
-
-For example, you could analyze different questions with those plots like: 
-- Does improvement A converge faster during training than improvement B? 
-- Does Improvement B converge slower but perform better in the end? 
-- etc... -->
-
 ## Members Contribution 
 Explain what member did what in the project:
 
-**Berfin Taskin:** : Worked with bart generation task both for the first part of the project and the second part of the project(improvement), README file, group leading.
+**Berfin Taskin:** : Implemented the both baseline and improvement for the Bart Generation task, README file, group leading.
 
 **Ashutosh Jaiswal:** : Implemented the improvement for the QQP Task and contributed to baseline tasks.
 
@@ -464,7 +427,7 @@ Explain what member did what in the project:
 
 **Emre Semercioglu:** : Implemented the improvement for the SST sentiment classification tasK and contributed to baseline tasks.
 
-**Shrinath Madde:** :
+**Shrinath Madde:** :  Implemented the both baseline and improvement for the Bart Detection task.
 
 ...
 
@@ -485,11 +448,6 @@ This is an automatic report generated with AI Usage Cards. https://ai-cards.org
 4) Socher, R., Perelygin, A., Wu, J., Chuang, J., Manning, C.D., Ng, A.Y., & Potts, C. (2013).  
 
 5) Cao, W., Mirza, D., & Gong, J. (2020).  
-
-
-
-
-<!-- Write down all your references (other repositories, papers, etc.) that you used for your project. -->
 
 
 
