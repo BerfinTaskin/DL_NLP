@@ -405,6 +405,12 @@ This is an automatic report generated with AI Usage Cards. https://ai-cards.org
 
 3) Gao, Tianyu, Xingcheng Yao, and Danqi Chen. "Simcse: Simple contrastive learning of sentence embeddings." arXiv preprint arXiv:2104.08821 (2021).
 
+4) Socher, R., Perelygin, A., Wu, J., Chuang, J., Manning, C.D., Ng, A.Y., & Potts, C. (2013).  
+
+5) Cao, W., Mirza, D., & Gong, J. (2020).  
+
+
+
 
 <!-- Write down all your references (other repositories, papers, etc.) that you used for your project. -->
 
