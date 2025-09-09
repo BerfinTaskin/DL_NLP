@@ -53,13 +53,22 @@ cd /user/shrinath.madde/u17468/DL_NLP
 #    --approach "added linear layer.withcosin decay" \
 #    --job_id "${SLURM_JOB_ID}"
 
-python -u bart2.py \
+#python -u bart2.py \
+#    --use_gpu \
+#    --num_epochs 30 \
+#    --batch_size 2 \
+#    --learning_rate 2e-5 \
+#    --early_stopping_patience 30 \
+#    --approach 'retunr logits' \
+#    --job_id "${SLURM_JOB_ID}"
+    
+python -u bart_k_bin.py \
     --use_gpu \
     --num_epochs 30 \
     --batch_size 2 \
     --learning_rate 2e-5 \
-    --early_stopping_patience 30 \
-    --approach 'retunr logits' \
-    --job_id "${SLURM_JOB_ID}"
-    
+    --early_stopping_patience 7 \
+    --approach "3_K-Bin Ensemble" \
+    --job_id "${SLURM_JOB_ID}" \
+    --k_bins 3
 echo "GPU job finished!"
