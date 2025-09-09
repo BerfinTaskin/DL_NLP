@@ -200,7 +200,7 @@ Here, `100 - BLEU_inp` acts as a “diversity” factor and the constant 52 resc
 Under identical data and evaluation conditions, the finetuned system improves **penalized BLEU** from **8.95** (baseline) to **19.59**. The gain is driven primarily by reduced input copying (lower \( \text{BLEU}_{\text{inp}} \)), with a modest trade-off in raw BLEU vs. references—consistent with the objective of producing paraphrases rather than near-copies.
 
 ### BART Detection
-We try to implement the baseline performace using following techniques
+We try to improve the baseline performace using following techniques
 
 1. **Make the head return logits** In the baseline model, the classifier head returned probabilities after applying a sigmoid activation. Instead, we modified the head to return raw logits directly. This allows the use of more stable loss functions (such as BCEWithLogitsLoss), avoids premature squashing of values, and lets the loss handle the sigmoid internally for improved numerical stability.
 
@@ -210,12 +210,9 @@ Rather than using the hidden state of the first token (similar to a [CLS] repres
 4. **K-Bin Ensemble**
 To reduce variance and improve robustness, we trained an ensemble of models on different random partitions (“bins”) of the training data. Each model was trained independently on one bin, and predictions were aggregated by averaging probabilities across models. This K-bin ensembling helps stabilize performance, reduces sensitivity to random initialization, and improves generalization on the dev and test sets.
 
-We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
-
 5. Data Augmentation Pipeline (ETPC)
 
 We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
-
 Steps implemented in our augmentation script:
   -  Preserve original pairs
   -  Back-translation (EN → DE → EN)
@@ -224,8 +221,6 @@ Steps implemented in our augmentation script:
    -  Uses sentencepiece + HuggingFace MarianMT.
    -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
    - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
-
-
 6) Hyperparameter Search (Baseline)
 
 To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
@@ -241,7 +236,7 @@ To tune hyperparameters, we performed a grid search over 9 parameter combination
 | **2e-4**                       |0.90 | 0.90| 0.89|
 | **2e-5**                       |0.90 | 0.90| 0.90|
 
-
+We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
 
 
 # Experiments
