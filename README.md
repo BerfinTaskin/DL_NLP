@@ -76,7 +76,42 @@ LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 
 # Methodology
 ### BERT sentiment analysis
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+We set out to improve the baseline SST sentiment classifier by leveraging the **ordinal nature** of sentiment labels. Instead of treating the problem as a standard categorical classification task, we reformulated it as an **ordinal regression problem**. Sentiment labels (very negative → very positive) have an inherent ranking, and ordinal regression allows the model to explicitly respect this order during training.
+
+**Key Design Choices**
+1. **Base Model:**  
+   - We use **BERT-base-uncased** as the encoder, providing contextualized embeddings for each input sentence.  
+   - The [CLS] representation is passed to the classification head.
+
+2. **Ordinal Regression Head (CORAL):**  
+   - Instead of a single softmax layer, we adopt a **CORAL (Cumulative Ordinal Regression for Neural Networks)** head.  
+   - This head decomposes the ordinal prediction into a sequence of **binary threshold classifiers**:  
+   - The final predicted label is derived by summing how many thresholds are passed.  
+   - This enforces **monotonicity constraints**, ensuring predictions follow the label order (no “out of order” inconsistencies).
+
+3. **Optimization and Regularization:**  
+   - Optimizer: **AdamW** with weight decay for stability.  
+   - Learning rate: **2e-5**, tuned to avoid overfitting while still fine-tuning BERT.  
+   - Batch size: **32** for a balance between efficiency and stability.  
+   - Dropout: **0.3** applied to the classification head for regularization.  
+   - Sequence length: **64 tokens**, sufficient for most SST sentences.  
+
+4. **Training Setup:**  
+   - **6 epochs** of training with early model selection based on dev accuracy.  
+   - Evaluation performed at the end of each epoch, with the best model checkpoint saved.  
+
+5. **Output and Evaluation:**  
+   - The script directly generates **CSV files** with predictions for both dev and test splits:  
+     - `sst-sentiment-dev-output.csv`  
+     - `sst-sentiment-test-output.csv`  
+   - These files align with the project’s evaluation pipeline, ensuring easy integration with downstream analysis.
+
+**Motivation**
+- Traditional softmax ignores the **ordinal relationship** between sentiment classes, treating them as independent categories.  
+- By introducing CORAL, the model is explicitly aware of the progression from *very negative → negative → positive → very positive*.  
+- This can reduce inconsistent errors (e.g., predicting “very positive” when the true label is “very negative”), leading to **more stable and interpretable predictions**.  
+
 ### BERT Semantic Textual Similarity (STS):
 We aimed to improve upon the baseline using several small measures that are proven to often benefit model performance.
 
@@ -153,7 +188,33 @@ Under identical data and evaluation conditions, the finetuned system improves **
 
 # Experiments
 ### BERT sentiment analysis
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+
+We conducted experiments comparing the **baseline SST head** implemented in `multitask_classifier.py` with our **CORAL-based SST head** (`sst_P02.py`). The goal was to evaluate whether reframing the task as ordinal regression improves model performance.
+
+**Setup**
+- Model backbone: `bert-base-uncased`.
+- Training data: Stanford Sentiment Treebank (SST).
+- Baseline: standard softmax classification head (multi-class cross entropy).
+- Proposed: CORAL head (cumulative ordinal regression with multiple binary classifiers).
+- Hyperparameters: batch size 32, learning rate 2e-5, max sequence length 64, 6 epochs, AdamW optimizer, seed = 42.
+- Evaluation: accuracy on dev and test sets. Best checkpoint chosen by dev accuracy.
+- Outputs: predictions automatically written to CSV (`predictions/bert/sst-sentiment-dev-output.csv` and `...-test-output.csv`).
+
+**Expectations**
+We hypothesized that CORAL would yield:
+1. More stable training dynamics (due to respecting the ordinal nature of sentiment labels).  
+2. Fewer “severe misclassifications” (e.g., very negative ↔ very positive).  
+3. Higher dev/test accuracy compared to the baseline (~0.520 dev acc).
+
+**Results**
+- Training accuracy improved steadily across epochs, reaching ~88% by epoch 6.  
+- Development (dev) accuracy peaked at **0.544**, compared to the baseline ~**0.520**.  
+- Test accuracy showed a similar modest improvement, consistent with expectations.  
+- Training curves showed smooth convergence, with less variance than the baseline model.  
+
+**Conclusion**
+The improvement was **modest but consistent**, validating the intuition that sentiment is an **ordinal task** and benefits from ordinal-aware modeling. Although the gain is not large, this demonstrates a meaningful step beyond the baseline and provides a foundation for further enhancements (e.g., label smoothing, data augmentation, or alternative ordinal regression heads).
+
 ### BERT semantic textual similarity (STS):
 To obtain a strong baseline, we conducted a basic hyperparameter search using the standard implementations of the first part of this module. The hyperparameter search varied the parameters `lr_backbone` (backbone learning rate), `lr_head` (learning rate of small head network), `batch_size`, and `hidden_dropout_prob` around the values that were given by default. We ran one repetition of each configuration such that some noise might have lead to not picking the optimal solution. However, we considered the result good enough. The best configuration found was:
 - `lr_backbone`: 0.0001
@@ -250,12 +311,10 @@ For each experiment answer briefly the questions:
 # Results 
 Summarize all the results of your experiments in tables:
 
-| **Stanford Sentiment Treebank (SST)** | **Metric 1** |**Metric n** |
-|----------------|-----------|------- |
-|Baseline |45.23%           |...            | 
-|Improvement 1          |58.56%            |...          
-|Improvement 2        |52.11%|...|
-|...        |...|...|
+| **Stanford Sentiment Treebank (SST)** | **Accuracy** |
+|----------------|-----------|
+|Baseline |52%           |          
+|Improvement 1         |54.4%   
 
 | **Quora Question Pairs (QQP)** | **Accuracy** |
 |----------------|-----------|
@@ -296,8 +355,6 @@ Results should have three-digit precision.
 <!-- _Note: Random parameter optimization with no motivation/discussion is not interesting and will be graded accordingly_ --> -->
 
 # Visualizations 
-## BERT sentiment analysis
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
 ## BERT semantic textual similarity (STS):
 All experiments showed the best performance very fast within 2-3 epochs, with degrading validation performance from there on. This is in line with the fact that the dataset is relatively small and overfits fast. The training plots were therefore in general not considered interesting. The plot that shows training and validation performance for the best baseline configuration over the 8 training epochs was plotted as an example:
 ![STS Train vs Dev Correlation](plots/sts_train_vs_dev_corr.png)
@@ -328,7 +385,7 @@ Explain what member did what in the project:
 
 **Jonathan Henrich:** : Implemented the improvement for the STS baseline and contributed to all components of the BERT-related tasks of the baseline.
 
-**Emre Semercioglu:** :
+**Emre Semercioglu:** : Implemented the improvement for the SST sentiment classification tasK and contributed to baseline tasks.
 
 **Shrinath Madde:** :
 
