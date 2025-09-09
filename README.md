@@ -72,7 +72,46 @@ python3 finetune_bart_generation.py --use_gpu
 ```
 
 ### BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+We try to implement the baseline performace using following techniques
+
+1. **Make the head return logits** In the baseline model, the classifier head returned probabilities after applying a sigmoid activation. Instead, we modified the head to return raw logits directly. This allows the use of more stable loss functions (such as BCEWithLogitsLoss), avoids premature squashing of values, and lets the loss handle the sigmoid internally for improved numerical stability.
+
+2. **Mean Pool over token embeddings**
+Rather than using the hidden state of the first token (similar to a [CLS] representation), we employed mean pooling across all token embeddings in the sentence pair. This representation takes into account the entire sentence context, especially beneficial for BART which does not have a dedicated [CLS] token. Mean pooling produced more informative sentence-level features for paraphrase classification.
+
+4. **K-Bin Ensemble**
+To reduce variance and improve robustness, we trained an ensemble of models on different random partitions (“bins”) of the training data. Each model was trained independently on one bin, and predictions were aggregated by averaging probabilities across models. This K-bin ensembling helps stabilize performance, reduces sensitivity to random initialization, and improves generalization on the dev and test sets.
+
+We combined techniques such as logits output, BCEWithLogitsLoss with pos_weight, mean pooling, and K-bin ensembling, alongside regularization strategies like gradient clipping, dropout, and learning-rate scheduling. These changes helped stabilize training, handle class imbalance, and improve generalization, with the best results achieved when methods were applied together.
+
+5. Data Augmentation Pipeline (ETPC)
+
+We extended the ETPC training dataset to improve robustness and balance for BART paraphrase type detection.
+
+Steps implemented in our augmentation script:
+  -  Preserve original pairs
+  -  Back-translation (EN → DE → EN)
+  -  Randomly paraphrase sentence1, sentence2, or both through German.
+  -  Generates label-preserving paraphrases that increase lexical and syntactic variety.
+   -  Uses sentencepiece + HuggingFace MarianMT.
+   -  Create non-paraphrase examples by pairing sentence1 with a random sentence2 from a different pair.
+   - Original train set: ~2,730 pairs, After augmentation: ~7,635 pairs (~2.8× expansion)
+
+
+6) Hyperparameter Search (Baseline)
+
+To tune hyperparameters, we performed a grid search over 9 parameter combinations, varying the learning rate 
+[2e−3,2e−4,2e−5]
+[2e−3,2e−4,2e−5] and batch size 
+[2,16,32]
+[2,16,32]. The results of this sweep are summarized in the table below.
+
+
+| Learning Rate ↓ / Batch Size → | 2   | 16  | 32  |
+|--------------------------------|-----|-----|-----|
+| **2e-3**                       |0.91 |  –  |  –  |
+| **2e-4**                       |0.90 | 0.90| 0.89|
+| **2e-5**                       |0.90 | 0.90| 0.90|
 
 # Methodology
 ### BERT sentiment analysis
@@ -287,7 +326,31 @@ We compare a **baseline BART-large** paraphrase generator against an **improved 
 - Overall, results **match expectations** and reveal a clear trend: enforcing diversity during decoding and stability during training yields better paraphrases under the assignment’s metric.
 
 ### BART Detection
-LOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUMLOREMIPSUM
+Experiment Summaries
+
+1) Baseline Approach: Used the standard BART classifier head with sigmoid activation and BCE loss. Served as the reference point for all improvements.
+
+2) Make the head return logits + BCEWithLogitsLoss (+ pos_weight): Modified the head to output raw logits and switched to BCEWithLogitsLoss with pos_weight to address class imbalance.
+
+3) Make the head return logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping: Same as above, but with gradient clipping to stabilize training and prevent exploding gradients.
+
+4) Mean Pool + Dropout: Replaced [CLS]-like token embedding with mean pooling over all tokens and added dropout for regularization.
+
+5) Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight): Combined mean pooling with logits-based head and class-weighted BCE loss.
+
+6) K-Bin Ensemble (2 bins): Split the training data into 2 bins, trained separate models, and ensembled predictions across bins to improve robustness.
+
+7) On Augmented data - Mean Pool + Dropout: Replaced [CLS]-like token embedding with mean pooling over all tokens and added dropout for regularization.
+
+| Approach                                                       | Val Accuracy |
+|----------------------------------------------------------------|--------------|
+| Baseline Approach                                              | 0.911        |
+| Make head return logits + BCEWithLogitsLoss (+ pos_weight)     | 0.759        |
+| Logits + BCEWithLogitsLoss (+ pos_weight) + Gradient Clipping  | 0.862        |
+| Mean Pool + Dropout                                            | 0.912        |
+| Mean Pool + Logits + BCEWithLogitsLoss (+ pos_weight)          | 0.875        |
+| K-Bin Ensemble (2 bins)                                        | 0.893        |
+| On Augmented data - Mean Pool + Dropout                        | 0.901        |
 
 <!-- Keep track of your experiments here. What are the experiments? Which tasks and models are you considering?
 
