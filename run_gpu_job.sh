@@ -50,7 +50,7 @@ python -u bart_detection.py \
     --batch_size 2 \
     --learning_rate 2e-5 \
     --early_stopping_patience 4 \
-    --approach "agumenteddata-mean-pool-dropout on Baseline Approach" \
+    --approach "mean-pool-dropout on Baseline Approach" \
     --job_id "${SLURM_JOB_ID}"
 
     
