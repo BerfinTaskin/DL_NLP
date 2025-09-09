@@ -448,7 +448,15 @@ This is an automatic report generated with AI Usage Cards. https://ai-cards.org
 
 4) Socher, R., Perelygin, A., Wu, J., Chuang, J., Manning, C.D., Ng, A.Y., & Potts, C. (2013).  
 
-5) Cao, W., Mirza, D., & Gong, J. (2020).  
+5) Cao, W., Mirza, D., & Gong, J. (2020).
+
+6) @inproceedings{wahle2024,
+ author={Jan Wahle, Bela Gipp, Terry Ruas},
+ title={Paraphrase Types for Generation and Detection},
+ pages={19},
+ year={2024},
+ month={07}
+}
 
 
 
