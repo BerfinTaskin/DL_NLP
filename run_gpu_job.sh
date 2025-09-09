@@ -44,14 +44,22 @@ module unload git # Unload git module if no longer needed
 cd /user/shrinath.madde/u17468/DL_NLP
 
 # Run your Python script (Removed --local_files_only)
-python -u bart_detection.py \
+#python -u bart_detection.py \
+#    --use_gpu \
+#    --num_epochs 30 \
+#    --batch_size 2 \
+#    --learning_rate 2e-5 \
+#    --early_stopping_patience 30 \
+#    --approach "added linear layer.withcosin decay" \
+#    --job_id "${SLURM_JOB_ID}"
+
+python -u bart2.py \
     --use_gpu \
     --num_epochs 30 \
     --batch_size 2 \
     --learning_rate 2e-5 \
     --early_stopping_patience 30 \
-    --approach "Warmup + cosine/linear decay reduces early overfitting." \
+    --approach 'retunr logits' \
     --job_id "${SLURM_JOB_ID}"
-
     
 echo "GPU job finished!"
