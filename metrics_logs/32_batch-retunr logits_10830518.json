@@ -1,0 +1,10 @@
+{
+  "job_id": "10830518",
+  "approach": "32_batch-retunr logits",
+  "epochs": 30,
+  "batch_size": 32,
+  "learning_rate": 2e-05,
+  "val_accuracy": 0.8553978210630573,
+  "val_mcc": 0.0,
+  "val_loss": 2.8021616637706757
+}
