@@ -417,6 +417,10 @@ All experiments showed the best performance very fast within 2-3 epochs, with de
 Cosine similarity distributions on the QQP dev set with SimCSE. Paraphrase pairs cluster near 1.0, while non-paraphrase pairs spread lower, yielding a better decision margin than the baseline classifier which was fixed (sigmoid, 0.5)
 <img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/ea9da676-79f0-4253-aa71-f7696806da4d" />
 
+## Bart Detection(ETPC dataset)
+<img width="640" height="480" alt="image" src="https://github.com/user-attachments/assets/ea9da676-79f0-4253-aa71-f7696806da4d" />
+
+
 ## Members Contribution 
 Explain what member did what in the project:
 
