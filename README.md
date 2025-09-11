@@ -421,18 +421,38 @@ Cosine similarity distributions on the QQP dev set with SimCSE. Paraphrase pairs
 
 Below are the loss curves for different experiments:
 
-![Dropout 0.3 Mean Pool Baseline](plots/droupout=0.3-mean-pool%20on%20Baseline%20Approach_10819992_loss_plot.png)
-![Baseline Batch16 GPU1](plots/baseline_batch16_4_10815915_gpu1_loss_plot.png)
-![Cosine Decay Linear Layer](plots/32_batch_added%20linear%20layer.withcosin%20decay_10830518_loss_plot.png)
-![Baseline Batch16 GPU0](plots/baseline_batch16_3_10815915_gpu0_loss_plot.png)
-![Baseline Batch16 GPU2](plots/baseline_batch16_5_10815915_gpu2_loss_plot.png)
-![Added Linear Layer Cosine Decay](plots/added%20linear%20layer.withcosin%20decay_10820767_loss_plot.png)
-![Augmented Data Mean Pool Dropout](plots/agumenteddata-mean-pool-dropout%20on%20Baseline%20Approach_10818664_loss_plot.png)
-![Baseline Batch16_3](plots/baseline_batch16_3_10815905_loss_plot.png)
-![Baseline Batch32 GPU1](plots/baseline_batch32_4_10817258_gpu1_loss_plot.png)
-![Baseline Batch32 GPU0](plots/baseline_batch32_3_10817258_gpu0_loss_plot.png)
-![Baseline Batch32 GPU2](plots/baseline_batch32_5_10817258_gpu2_loss_plot.png)
-![Mean Pool Dropout Baseline](plots/mean-pool-dropout%20on%20Baseline%20Approach_10819286_loss_plot.png)
+<h1 align="center">📊 Model Training Results</h1>
+
+<p align="center">
+  <img src="plots/droupout=0.3-mean-pool%20on%20Baseline%20Approach_10819992_loss_plot.png" width="48%">
+  <img src="plots/baseline_batch16_4_10815915_gpu1_loss_plot.png" width="48%">
+</p>
+
+<p align="center">
+  <img src="plots/32_batch_added%20linear%20layer.withcosin%20decay_10830518_loss_plot.png" width="48%">
+  <img src="plots/baseline_batch16_3_10815915_gpu0_loss_plot.png" width="48%">
+</p>
+
+<p align="center">
+  <img src="plots/baseline_batch16_5_10815915_gpu2_loss_plot.png" width="48%">
+  <img src="plots/added%20linear%20layer.withcosin%20decay_10820767_loss_plot.png" width="48%">
+</p>
+
+<p align="center">
+  <img src="plots/agumenteddata-mean-pool-dropout%20on%20Baseline%20Approach_10818664_loss_plot.png" width="48%">
+  <img src="plots/baseline_batch16_3_10815905_loss_plot.png" width="48%">
+</p>
+
+<p align="center">
+  <img src="plots/baseline_batch32_4_10817258_gpu1_loss_plot.png" width="48%">
+  <img src="plots/baseline_batch32_3_10817258_gpu0_loss_plot.png" width="48%">
+</p>
+
+<p align="center">
+  <img src="plots/baseline_batch32_5_10817258_gpu2_loss_plot.png" width="48%">
+  <img src="plots/mean-pool-dropout%20on%20Baseline%20Approach_10819286_loss_plot.png" width="48%">
+</p>
+
 
 
 
